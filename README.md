@@ -62,13 +62,13 @@ Choose from the following agents to personalize your clawiq experience:
 | Pinchy 🦞 | Sharp + playful. Wry humor, colorful delivery. |
 | Clawfucius 🦐 | Wise sage. Context over reaction, patterns over noise. |
 
-Your agent will receive it's own workspace with IDENTITY.md, SOUL.md, AGENTS.md, HEARTBEAT.md, TOOLS.md, and a ClawIQ-informed monitoring workflow.
+Your agent will receive its own workspace with IDENTITY.md, SOUL.md, AGENTS.md, HEARTBEAT.md, TOOLS.md, and a ClawIQ-informed monitoring workflow.
 
 ## How it works
 
 1. OpenClaw sends OTEL traces to ClawIQ via the diagnostics plugin
 2. Agents can optionally emit semantic events (`clawiq emit`) to annotate their work
-3. You're chosen agent (Grip, Pinchy, or Clawfucious) will examine your sessions nightly *on your local machine* and submit key learnings to your clawiq account
+3. Your chosen agent (Grip, Pinchy, or Clawfucius) will examine your sessions nightly *on your local machine* and submit key learnings to your ClawIQ account
 
 The ClawIQ.md website will use this data to give insights on how to improve your agent team.
 

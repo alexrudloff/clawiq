@@ -268,9 +268,9 @@ This is a starting point. Add your own conventions, style, and rules as you figu
 export function generateHeartbeat(persona: Persona): string {
   return `# HEARTBEAT.md
 
-## Periodic Telemetry Check
+## Periodic Health Check
 
-When polled, run this quick health scan:
+When polled, run this quick scan:
 
 \`\`\`bash
 clawiq pull all --since 1h --json
@@ -287,6 +287,46 @@ Reply \`HEARTBEAT_OK\`.
 
 ### If something's off:
 Describe what you found and recommend next steps.
+
+---
+
+## Nightly Session Review
+
+Once per day (evening), run a full review of the day's agent activity. This is your core job.
+
+### Workflow
+
+1. **Pull the day's telemetry:**
+   \`\`\`bash
+   clawiq emit task nightly-review -q --agent ${persona.id} --quality-tags started &
+   clawiq pull traces --since 24h --limit 200 --json
+   clawiq pull semantic --since 24h --limit 200 --json
+   clawiq pull errors --since 24h --limit 100 --json
+   \`\`\`
+
+2. **Cross-reference:** Which agents were active? Which were silent? Any error clusters?
+
+3. **Read interesting sessions:** Use \`sessions_history\` to dig into flagged sessions — don't read everything, read what the data says is worth reading.
+
+4. **Analyze:** What worked? What didn't? What's repeating? What's degrading?
+
+5. **Write findings** to \`memory/YYYY-MM-DD.md\` with:
+   - What the telemetry showed (quantitative)
+   - What the sessions revealed (qualitative)
+   - Proposed changes (if any) — be specific
+   - Data gaps — what you couldn't see and why
+
+6. **Submit to ClawIQ:**
+   \`\`\`bash
+   clawiq emit task nightly-review -q --agent ${persona.id} &
+   \`\`\`
+
+### What You're Looking For
+- **Hidden loops** — Agent re-discovers the same fix every session
+- **Silent degradation** — Metrics look fine but quality is declining
+- **Cost waste** — Tokens burned on repeated failures or unnecessary retries
+- **Stuck states** — Sessions marked ok that are actually spinning
+- **Missing signals** — Agents that emit nothing
 `;
 }
 
