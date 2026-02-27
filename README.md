@@ -38,13 +38,13 @@ The wizard will:
 
 ### 3. Verify
 
-```bash
-clawiq pull all --since 1h
-```
+Send your OpenClaw agent a message, and then check to see if there's data flowing into clawiq.md
 
-If your OpenClaw instance is running with the diagnostics plugin enabled, you should see traces flowing in.
+If your OpenClaw instance is properly configured, you should see data flowing in under "Events," and "Insights" will soon appear!
 
 ## Non-interactive setup
+
+Agents can set up clawiq themselves using:
 
 ```bash
 clawiq init --api-key YOUR_KEY --persona grip --non-interactive
@@ -52,7 +52,9 @@ clawiq init --api-key YOUR_KEY --persona grip --non-interactive
 
 Valid personas: `grip`, `pinchy`, `clawfucius`.
 
-## Personas
+## Agent Personas
+
+Choose from the following agents to personalize your clawiq experience:
 
 | Persona | Style |
 |---------|-------|
@@ -60,14 +62,15 @@ Valid personas: `grip`, `pinchy`, `clawfucius`.
 | Pinchy 🦞 | Sharp + playful. Wry humor, colorful delivery. |
 | Clawfucius 🦐 | Wise sage. Context over reaction, patterns over noise. |
 
-Each persona gets a full workspace with IDENTITY.md, SOUL.md, AGENTS.md, HEARTBEAT.md, TOOLS.md, and a ClawIQ-informed monitoring workflow.
+Your agent will receive it's own workspace with IDENTITY.md, SOUL.md, AGENTS.md, HEARTBEAT.md, TOOLS.md, and a ClawIQ-informed monitoring workflow.
 
 ## How it works
 
 1. OpenClaw sends OTEL traces to ClawIQ via the diagnostics plugin
-2. Agents emit semantic events (`clawiq emit`) to annotate their work
-3. The ClawIQ dashboard and CLI (`clawiq pull`) surface insights
-4. Your monitoring persona analyzes the data and reports findings
+2. Agents can optionally emit semantic events (`clawiq emit`) to annotate their work
+3. You're chosen agent (Grip, Pinchy, or Clawfucious) will examine your sessions nightly *on your local machine* and submit key learnings to your clawiq account
+
+The ClawIQ.md website will use this data to give insights on how to improve your agent team.
 
 ## Configuration
 
