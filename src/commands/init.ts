@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { loadConfig, saveConfig, ClawIQConfig } from '../config.js';
 import { ClawIQClient } from '../api.js';
-import { loadOpenClawConfig, saveOpenClawConfig, agentExists, OPENCLAW_DIR } from '../openclaw.js';
+import { loadOpenClawConfig, saveOpenClawConfig, backupOpenClawConfig, agentExists, OPENCLAW_DIR } from '../openclaw.js';
 import { PERSONAS, getPersona, isValidPersona } from '../personas.js';
 import { createWorkspace, discoverWorkspaces, ensureClawiqSkillSymlink, workspaceExists } from '../workspace.js';
 import * as readline from 'readline';
@@ -177,6 +177,9 @@ export function createInitCommand(): Command {
         }
 
         // ── [4] Configure OTEL in openclaw.json ────────────────
+        if (backupOpenClawConfig()) {
+          console.log(chalk.green('\u2713') + ' Backed up openclaw.json → openclaw.pre-clawiq.json');
+        }
         const openclawConfig = loadOpenClawConfig();
 
         if (!openclawConfig.diagnostics) {

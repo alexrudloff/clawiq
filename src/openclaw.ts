@@ -41,14 +41,19 @@ export function loadOpenClawConfig(): OpenClawConfig {
   }
 }
 
+const PRE_CLAWIQ_BACKUP = join(OPENCLAW_DIR, 'openclaw.pre-clawiq.json');
+
+export function backupOpenClawConfig(): boolean {
+  if (existsSync(OPENCLAW_CONFIG) && !existsSync(PRE_CLAWIQ_BACKUP)) {
+    copyFileSync(OPENCLAW_CONFIG, PRE_CLAWIQ_BACKUP);
+    return true;
+  }
+  return false;
+}
+
 export function saveOpenClawConfig(config: OpenClawConfig): void {
   if (!existsSync(OPENCLAW_DIR)) {
     mkdirSync(OPENCLAW_DIR, { recursive: true });
-  }
-
-  // Back up existing config
-  if (existsSync(OPENCLAW_CONFIG)) {
-    copyFileSync(OPENCLAW_CONFIG, OPENCLAW_CONFIG + '.bak');
   }
 
   writeFileSync(OPENCLAW_CONFIG, JSON.stringify(config, null, 2));
