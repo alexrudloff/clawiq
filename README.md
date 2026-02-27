@@ -1,6 +1,12 @@
-# ClawIQ CLI
+# ClawIQ
 
-Analytics for AI agents. Understand what your agents actually do — not just what they cost.
+Agent intelligence for [OpenClaw](https://github.com/alexrudloff/openclaw). Understand what your agents actually do — not just what they cost.
+
+## What is ClawIQ?
+
+ClawIQ is the monitoring layer for OpenClaw. It collects OTEL traces, semantic events, and error data from your agents, then surfaces insights through a web dashboard and CLI.
+
+When you run `clawiq init`, a monitoring agent is created in your OpenClaw workspace — a dedicated persona that watches over your system and reports on what it finds.
 
 ## Installation
 
@@ -8,82 +14,68 @@ Analytics for AI agents. Understand what your agents actually do — not just wh
 npm install -g clawiq
 ```
 
-## Quick Start
+Requires Node.js 18+.
 
-### 1. Initialize
+## Setup
+
+### 1. Get an API key
+
+Sign up at [clawiq.dev](https://clawiq-www-production.up.railway.app) and create an API key in **Settings > API Keys**.
+
+### 2. Run the setup wizard
 
 ```bash
 clawiq init
 ```
 
-This prompts for your API key and saves it to `~/.clawiq/config.json`. Get an API key from **Settings > API Keys** in the [ClawIQ dashboard](https://clawiq-www-production.up.railway.app).
+The wizard will:
+- Validate your API key against the ClawIQ API
+- Let you choose a monitoring persona (Grip, Pinchy, or Clawfucius)
+- Configure OTEL telemetry in `~/.openclaw/openclaw.json`
+- Create an agent workspace at `~/.openclaw/workspace-{persona}/`
+- Register the agent in your OpenClaw config
+- Link the ClawIQ skill to existing workspaces
 
-### 2. Send your first event
-
-```bash
-clawiq emit task my-first-task --agent my-agent
-```
-
-### 3. View insights
-
-Open the [Insights dashboard](https://clawiq-www-production.up.railway.app/insights) to see your agent activity.
-
-## Usage
+### 3. Verify
 
 ```bash
-# Report a completed task
-clawiq emit task dinner-poll --agent alex --channel imessage
-
-# Report an error
-clawiq emit error api-timeout --agent alex --severity error
-
-# Report a correction
-clawiq emit correction wrong-date --agent alex --quality-tags user-corrected
-
-# Query recent events
-clawiq query --limit 10 --type task
-
-# Pull traces from last 24h
-clawiq pull traces --limit 25
-
-# Pull a merged timeline stream
-clawiq pull all --since 24h --limit 30
+clawiq pull all --since 1h
 ```
 
-## Event Types
+If your OpenClaw instance is running with the diagnostics plugin enabled, you should see traces flowing in.
 
-| Type | When |
-|------|------|
-| `task` | Completed a user request |
-| `delivery` | Sent a message/notification |
-| `decision` | Made a routing/handling choice |
-| `correction` | Fixed a mistake |
-| `error` | Something failed |
-| `coordination` | Handed off to another system |
-| `feedback` | Received user feedback |
-| `health` | System status |
-| `note` | Observation or annotation |
+## Non-interactive setup
+
+```bash
+clawiq init --api-key YOUR_KEY --persona grip --non-interactive
+```
+
+Valid personas: `grip`, `pinchy`, `clawfucius`.
+
+## Personas
+
+| Persona | Style |
+|---------|-------|
+| Grip 🦀 | Senior SRE. Direct, analytical, numbers first. |
+| Pinchy 🦞 | Sharp + playful. Wry humor, colorful delivery. |
+| Clawfucius 🦐 | Wise sage. Context over reaction, patterns over noise. |
+
+Each persona gets a full workspace with IDENTITY.md, SOUL.md, AGENTS.md, HEARTBEAT.md, TOOLS.md, and a ClawIQ-informed monitoring workflow.
+
+## How it works
+
+1. OpenClaw sends OTEL traces to ClawIQ via the diagnostics plugin
+2. Agents emit semantic events (`clawiq emit`) to annotate their work
+3. The ClawIQ dashboard and CLI (`clawiq pull`) surface insights
+4. Your monitoring persona analyzes the data and reports findings
 
 ## Configuration
 
-The CLI loads config from (highest to lowest priority):
+Config is loaded from (highest to lowest priority):
 
 1. Environment variables (`CLAWIQ_API_KEY`, `CLAWIQ_ENDPOINT`)
 2. `~/.clawiq/config.json` (written by `clawiq init`)
-3. `~/.openclaw/openclaw.json` (auto-discovered from OpenClaw)
-
-## Flags
-
-| Flag | Description |
-|------|-------------|
-| `-q` | Quiet mode (suppress output) |
-| `--agent <name>` | Agent name |
-| `--channel <ch>` | Channel: imessage, telegram, slack, email, etc. |
-| `--severity <lvl>` | info (default), warn, error |
-| `--quality-tags <t>` | Tags: started, abandoned, hallucination, self-corrected, etc. |
-| `--action-tags <t>` | Tags: poll, reminder, summary, etc. |
-| `--domain-tags <t>` | Tags: family, work, finance, health |
-| `--meta '<json>'` | Additional context as JSON |
+3. `~/.openclaw/openclaw.json` (auto-discovered from OpenClaw OTEL headers)
 
 ## License
 
