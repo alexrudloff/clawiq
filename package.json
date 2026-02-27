@@ -1,0 +1,43 @@
+{
+  "name": "clawiq",
+  "version": "0.1.0",
+  "description": "CLI for ClawIQ — analytics for AI agents",
+  "repository": "https://github.com/alexrudloff/clawiq",
+  "homepage": "https://clawiq-www-production.up.railway.app",
+  "main": "dist/index.js",
+  "bin": {
+    "clawiq": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "lint": "eslint src --ext .ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "clawiq",
+    "openclaw",
+    "telemetry",
+    "events",
+    "agents"
+  ],
+  "author": "ClawIQ",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "cli-table3": "^0.6.5",
+    "commander": "^12.1.0",
+    "ora": "^8.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist"
+  ]
+}
