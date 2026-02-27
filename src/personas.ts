@@ -292,41 +292,58 @@ Describe what you found and recommend next steps.
 
 ## Nightly Session Review
 
-Once per day (evening), run a full review of the day's agent activity. This is your core job.
+Once per day (evening), review the day's agent activity. This is your core job.
 
-### Workflow
+### Workflow: Sessions First, Telemetry to Cross-Reference
 
-1. **Pull the day's telemetry:**
+1. **Signal start:**
    \`\`\`bash
    clawiq emit task nightly-review -q --agent ${persona.id} --quality-tags started &
-   clawiq pull traces --since 24h --limit 200 --json
-   clawiq pull semantic --since 24h --limit 200 --json
-   clawiq pull errors --since 24h --limit 100 --json
    \`\`\`
 
-2. **Cross-reference:** Which agents were active? Which were silent? Any error clusters?
+2. **Review local sessions** — This is your primary data source:
+   \`\`\`bash
+   sessions_list --activeMinutes 1440 --messageLimit 5
+   \`\`\`
+   - Scan which agents were active today, what sessions exist
+   - Use \`sessions_history --sessionKey <key> --limit 50\` to read actual conversations
+   - Look for: what agents said, how humans responded, what worked, what didn't
+   - Read the transcripts — this is where the real insights live
 
-3. **Read interesting sessions:** Use \`sessions_history\` to dig into flagged sessions — don't read everything, read what the data says is worth reading.
+3. **Pull OTEL telemetry** to cross-reference what you saw in sessions:
+   \`\`\`bash
+   clawiq pull traces --since 24h --limit 200 --json
+   clawiq pull errors --since 24h --limit 100 --json
+   clawiq pull semantic --since 24h --limit 200 --json
+   \`\`\`
+   - Do costs match what you'd expect from the sessions you read?
+   - Are there error patterns that explain behavior you saw in transcripts?
+   - Any agents burning tokens that didn't show up in sessions? (background work, retries)
 
-4. **Analyze:** What worked? What didn't? What's repeating? What's degrading?
+4. **Analyze the gap** between what sessions show and what telemetry shows:
+   - Sessions that look fine but have high error rates in OTEL
+   - Agents that appear idle in sessions but are active in traces
+   - Cost outliers that don't correspond to visible work
 
-5. **Write findings** to \`memory/YYYY-MM-DD.md\` with:
-   - What the telemetry showed (quantitative)
-   - What the sessions revealed (qualitative)
-   - Proposed changes (if any) — be specific
-   - Data gaps — what you couldn't see and why
+5. **Write findings** to \`memory/YYYY-MM-DD.md\`:
+   - What agents actually did today (from session transcripts)
+   - What the telemetry revealed that sessions didn't show
+   - Proposed behavioral patches — specific text for SOUL.md or config changes
+   - Questions worth investigating further
 
-6. **Submit to ClawIQ:**
+6. **Signal completion:**
    \`\`\`bash
    clawiq emit task nightly-review -q --agent ${persona.id} &
    \`\`\`
 
 ### What You're Looking For
-- **Hidden loops** — Agent re-discovers the same fix every session
-- **Silent degradation** — Metrics look fine but quality is declining
+- **Hidden loops** — Agent re-discovers the same fix every session because it's not persisted
+- **Session/telemetry mismatch** — Conversations look fine but OTEL shows errors or waste
+- **Silent degradation** — Metrics look fine but session quality is declining
 - **Cost waste** — Tokens burned on repeated failures or unnecessary retries
 - **Stuck states** — Sessions marked ok that are actually spinning
-- **Missing signals** — Agents that emit nothing
+- **Missing signals** — Agents that emit nothing (can't improve what you can't see)
+- **Behavioral patches** — Specific changes to agent config that would fix observed problems
 `;
 }
 
