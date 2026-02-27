@@ -8,7 +8,7 @@ import { PERSONAS, getPersona, isValidPersona } from '../personas.js';
 import { createWorkspace, discoverWorkspaces, ensureClawiqSkillSymlink, workspaceExists } from '../workspace.js';
 import * as readline from 'readline';
 
-const PRODUCTION_ENDPOINT = 'https://clawiq-production.up.railway.app';
+const PRODUCTION_ENDPOINT = 'https://api.clawiq.md';
 
 function prompt(question: string): Promise<string> {
   const rl = readline.createInterface({

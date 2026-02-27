@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "CLI for ClawIQ — analytics for AI agents",
   "repository": "https://github.com/alexrudloff/clawiq",
-  "homepage": "https://clawiq-www-production.up.railway.app",
+  "homepage": "https://clawiq.md",
   "main": "dist/index.js",
   "bin": {
     "clawiq": "dist/index.js"

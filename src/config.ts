@@ -14,8 +14,8 @@ const CONFIG_DIR = join(homedir(), '.clawiq');
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 const OPENCLAW_CONFIG = join(homedir(), '.openclaw', 'openclaw.json');
 
-const DEFAULT_ENDPOINT = 'https://clawiq-production.up.railway.app';      // Measure (ingest)
-const DEFAULT_API_ENDPOINT = 'https://clawiq-production.up.railway.app'; // API (queries)
+const DEFAULT_ENDPOINT = 'https://api.clawiq.md';      // Measure (ingest)
+const DEFAULT_API_ENDPOINT = 'https://api.clawiq.md'; // API (queries)
 
 /**
  * Load config from multiple sources in priority order:

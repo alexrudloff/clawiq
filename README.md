@@ -20,7 +20,7 @@ Requires Node.js 18+.
 
 ### 1. Get an API key
 
-Sign up at [clawiq.dev](https://clawiq-www-production.up.railway.app) and create an API key in **Settings > API Keys**.
+Sign up at [clawiq.md](https://clawiq.md) and create an API key in **Settings > API Keys**.
 
 ### 2. Run the setup wizard
 
