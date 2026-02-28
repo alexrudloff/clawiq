@@ -54,6 +54,18 @@ export function backupOpenClawConfig(): boolean {
   return false;
 }
 
+export function hasPreClawiqBackup(): boolean {
+  return existsSync(PRE_CLAWIQ_BACKUP);
+}
+
+export function restorePreClawiqBackup(): boolean {
+  if (!existsSync(PRE_CLAWIQ_BACKUP)) {
+    return false;
+  }
+  copyFileSync(PRE_CLAWIQ_BACKUP, OPENCLAW_CONFIG);
+  return true;
+}
+
 export function saveOpenClawConfig(config: OpenClawConfig): void {
   if (!existsSync(OPENCLAW_DIR)) {
     mkdirSync(OPENCLAW_DIR, { recursive: true });

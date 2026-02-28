@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, lstatSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, lstatSync, rmSync } from 'fs';
 import { join } from 'path';
 import { OPENCLAW_DIR } from './openclaw.js';
 import {
@@ -260,5 +260,39 @@ export function appendClawiqTools(workspacePath: string): boolean {
   }
 
   writeFileSync(toolsPath, existing.trimEnd() + '\n' + CLAWIQ_TOOLS_SECTION);
+  return true;
+}
+
+/**
+ * Remove ClawIQ CLI reference from a workspace's TOOLS.md.
+ * Returns true if the file was updated, false if no change.
+ */
+export function removeClawiqTools(workspacePath: string): boolean {
+  const toolsPath = join(workspacePath, 'TOOLS.md');
+  if (!existsSync(toolsPath)) {
+    return false;
+  }
+
+  const existing = readFileSync(toolsPath, 'utf-8');
+  const markerIndex = existing.indexOf(CLAWIQ_TOOLS_MARKER);
+  if (markerIndex === -1) {
+    return false;
+  }
+
+  const updated = existing.slice(0, markerIndex).trimEnd();
+  writeFileSync(toolsPath, updated.length ? updated + '\n' : '');
+  return true;
+}
+
+/**
+ * Remove the shared clawiq skill directory if present.
+ * Returns true if removed, false if not found.
+ */
+export function removeClawiqSkill(): boolean {
+  const skillDir = join(SHARED_SKILLS_DIR, 'clawiq');
+  if (!existsSync(skillDir)) {
+    return false;
+  }
+  rmSync(skillDir, { recursive: true, force: true });
   return true;
 }
