@@ -34,7 +34,7 @@ export function createInitCommand(): Command {
       const config: ClawIQConfig = { ...existingConfig };
 
       try {
-        console.log(chalk.bold('\n\u{1F980} ClawIQ Setup\n'));
+        console.log(chalk.bold('\n\u{1F99E} ClawIQ Setup\n'));
 
         // ── [1] API Key ────────────────────────────────────────
         let apiKey: string | undefined;
@@ -190,10 +190,15 @@ export function createInitCommand(): Command {
         const gwSpinner = ora('Restarting OpenClaw gateway...').start();
         try {
           await new Promise<void>((resolve, reject) => {
-            execFile('openclaw', ['gateway', 'restart'], (error) => {
+            const child = execFile('openclaw', ['gateway', 'restart'], (error) => {
               if (error) reject(error);
               else resolve();
             });
+            // gateway restart can be slow — give it 60s
+            setTimeout(() => {
+              child.kill();
+              resolve();
+            }, 60_000);
           });
           gwSpinner.succeed('OpenClaw gateway restarted');
         } catch {
