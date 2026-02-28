@@ -152,13 +152,13 @@ export function createInitCommand(): Command {
             id: agentId,
             workspace: workspacePath,
           });
-          console.log(chalk.green('\u2713') + ` Agent "${agentId}" registered in openclaw.json`);
+          console.log(chalk.green('\u2713') + ` Creating Larry the Lobster and registering in openclaw.json`);
         } else {
           const existing = openclawConfig.agents.list.find((a) => a.id === agentId);
           if (existing) {
             existing.workspace = workspacePath;
           }
-          console.log(chalk.dim(`  Agent "${agentId}" already in openclaw.json (updated)`));
+          console.log(chalk.dim(`  Larry the Lobster already in openclaw.json (updated)`));
         }
 
         saveOpenClawConfig(openclawConfig);
@@ -205,7 +205,64 @@ export function createInitCommand(): Command {
           gwSpinner.warn('Could not restart gateway (restart manually with: openclaw gateway restart)');
         }
 
-        // ── [9] Send setup-complete marker ───────────────────────
+        // ── [9] Create nightly performance review cron job ──────
+        const cronSpinner = ora('Creating nightly performance review cron...').start();
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const cronPayload = JSON.stringify({
+              name: 'Larry Nightly Performance Review',
+              schedule: {
+                kind: 'cron',
+                expr: '0 3 * * *',
+                tz: 'America/New_York'
+              },
+              sessionTarget: 'isolated',
+              payload: {
+                kind: 'agentTurn',
+                message: 'Run your nightly performance review. Follow the workflow in HEARTBEAT.md — pull OTEL data first, identify interesting sessions, read only those, cross-reference, and submit findings via clawiq report finding. Write a summary to memory/today\'s date.md.',
+                timeoutSeconds: 600
+              },
+              delivery: {
+                mode: 'none'
+              },
+              enabled: true
+            });
+
+            execFile('openclaw', ['cron', 'add', '--agent', agentId, '--json', cronPayload], (error, stdout) => {
+              if (error) reject(error);
+              else resolve();
+            });
+          });
+          cronSpinner.succeed('Nightly review scheduled (3:00 AM daily)');
+        } catch {
+          // Fallback: try via the gateway API directly
+          try {
+            await new Promise<void>((resolve, reject) => {
+              const addCmd = `curl -s -X POST http://localhost:3456/api/cron/jobs -H "Content-Type: application/json" -d '${JSON.stringify({
+                agentId,
+                name: 'Larry Nightly Performance Review',
+                schedule: { kind: 'cron', expr: '0 3 * * *', tz: 'America/New_York' },
+                sessionTarget: 'isolated',
+                payload: {
+                  kind: 'agentTurn',
+                  message: "Run your nightly performance review. Follow the workflow in HEARTBEAT.md — pull OTEL data first, identify interesting sessions, read only those, cross-reference, and submit findings via clawiq report finding. Write a summary to memory/ for today's date.",
+                  timeoutSeconds: 600
+                },
+                delivery: { mode: 'none' },
+                enabled: true
+              })}'`;
+              execFile('sh', ['-c', addCmd], (error) => {
+                if (error) reject(error);
+                else resolve();
+              });
+            });
+            cronSpinner.succeed('Nightly review scheduled (3:00 AM daily)');
+          } catch {
+            cronSpinner.warn('Could not create cron job. Set up manually: openclaw cron add');
+          }
+        }
+
+        // ── [10] Send setup-complete marker ───────────────────────
         try {
           await client.emit([{
             type: 'health',
