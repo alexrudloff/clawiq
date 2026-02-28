@@ -152,13 +152,13 @@ export function createInitCommand(): Command {
             id: agentId,
             workspace: workspacePath,
           });
-          console.log(chalk.green('\u2713') + ` Creating Larry the Lobster and registering in openclaw.json`);
+          console.log(chalk.green('\u2713') + ` Creating Lex the Lobster and registering in openclaw.json`);
         } else {
           const existing = openclawConfig.agents.list.find((a) => a.id === agentId);
           if (existing) {
             existing.workspace = workspacePath;
           }
-          console.log(chalk.dim(`  Larry the Lobster already in openclaw.json (updated)`));
+          console.log(chalk.dim(`  Lex the Lobster already in openclaw.json (updated)`));
         }
 
         saveOpenClawConfig(openclawConfig);
@@ -233,7 +233,7 @@ export function createInitCommand(): Command {
         try {
           await new Promise<void>((resolve, reject) => {
             const cronPayload = JSON.stringify({
-              name: 'Larry Nightly Performance Review',
+              name: 'Lex Nightly Performance Review',
               schedule: {
                 kind: 'cron',
                 expr: '0 3 * * *',
@@ -263,7 +263,7 @@ export function createInitCommand(): Command {
             await new Promise<void>((resolve, reject) => {
               const addCmd = `curl -s -X POST http://localhost:3456/api/cron/jobs -H "Content-Type: application/json" -d '${JSON.stringify({
                 agentId,
-                name: 'Larry Nightly Performance Review',
+                name: 'Lex Nightly Performance Review',
                 schedule: { kind: 'cron', expr: '0 3 * * *', tz: 'America/New_York' },
                 sessionTarget: 'isolated',
                 payload: {
@@ -307,7 +307,7 @@ export function createInitCommand(): Command {
         console.log(`  ${chalk.dim('OTEL:')}       ${API_ENDPOINT}`);
         console.log(`  ${chalk.dim('API Key:')}    ${apiKey.slice(0, 15)}...`);
         console.log('');
-        console.log(chalk.bold('\n🦞 Larry\'s ready. First review runs tonight at 3 AM. Claws out.\n'));
+        console.log(chalk.bold('\n🦞 Lex is ready. First review runs tonight at 3 AM. Claws out.\n'));
       } catch (error) {
         handleError(error);
       }

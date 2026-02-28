@@ -6,7 +6,7 @@ export interface Agent {
 
 export const CLAWIQ_AGENT: Agent = {
   id: 'clawiq',
-  name: 'Larry',
+  name: 'Lex',
   emoji: '\u{1F99E}',
 };
 
