@@ -884,7 +884,7 @@ function buildEventsCommand(): Command {
           offset: page.offset,
         });
 
-        let events = result.events;
+        let events = result.events ?? [];
         let total: number | undefined = result.total;
 
         if (options.agent) {
@@ -1043,8 +1043,8 @@ function buildTracesCommand(): Command {
           page.limit,
           page.offset
         );
-        const traces = result.traces;
-        const total = result.total;
+        const traces = result.traces ?? [];
+        const total = result.total ?? 0;
 
         if (options.json) {
           console.log(
@@ -1113,8 +1113,8 @@ function buildErrorsCommand(): Command {
           page.limit,
           page.offset
         );
-        const errors = result.errors;
-        const total = result.total;
+        const errors = result.errors ?? [];
+        const total = result.total ?? 0;
 
         if (options.json) {
           console.log(
