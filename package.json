@@ -36,8 +36,5 @@
   },
   "engines": {
     "node": ">=22"
-  },
-  "files": [
-    "dist"
-  ]
+  }
 }
