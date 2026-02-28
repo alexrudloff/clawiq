@@ -289,6 +289,33 @@ function createInitCommand() {
             catch {
                 console.log(chalk_1.default.dim('  Could not send setup marker (API may be unreachable)'));
             }
+            // ── [11] Trigger first review ─────────────────────────────
+            const firstRunSpinner = (0, ora_1.default)('Triggering Lenny\'s first review (findings will appear shortly)...').start();
+            try {
+                const firstRunMessage = 'This is your first review after being installed. Introduce yourself briefly in your first finding. Then do a quick scan: pull OTEL traces and semantic events from the last 24h, check sessions_list for active agents, and submit findings for anything interesting you see. If data is sparse, report what you can see and what\'s missing. Keep it short — full nightly reviews start tomorrow at 3 AM.';
+                await new Promise((resolve, reject) => {
+                    (0, child_process_1.execFile)('openclaw', [
+                        'cron', 'add',
+                        '--agent', agentId,
+                        '--name', 'Lenny First Review',
+                        '--at', '+30s',
+                        '--session', 'isolated',
+                        '--message', firstRunMessage,
+                        '--timeout-seconds', '300',
+                        '--no-deliver',
+                        '--delete-after-run',
+                    ], (error) => {
+                        if (error)
+                            reject(error);
+                        else
+                            resolve();
+                    });
+                });
+                firstRunSpinner.succeed('First review triggered — check findings in a few minutes');
+            }
+            catch {
+                firstRunSpinner.warn('Could not trigger first review. Lenny will run his first full review tonight at 3 AM.');
+            }
             // ── Done ─────────────────────────────────────────────────
             console.log(chalk_1.default.bold.green('\n\u2705 Setup complete!\n'));
             console.log(chalk_1.default.dim('What was set up:'));
@@ -297,7 +324,7 @@ function createInitCommand() {
             console.log(`  ${chalk_1.default.dim('OTEL:')}       ${config_js_1.API_ENDPOINT}`);
             console.log(`  ${chalk_1.default.dim('API Key:')}    ${apiKey.slice(0, 15)}...`);
             console.log('');
-            console.log(chalk_1.default.bold('\n🦞 Lenny is ready. First review runs tonight at 3 AM. Claws out.\n'));
+            console.log(chalk_1.default.bold('\n🦞 Lenny\'s on it. First findings incoming. Claws out.\n'));
         }
         catch (error) {
             (0, format_js_1.handleError)(error);
