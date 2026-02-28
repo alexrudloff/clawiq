@@ -12,7 +12,7 @@ const program = new Command();
 
 program
   .name('clawiq')
-  .description('CLI for reporting semantic events to ClawIQ')
+  .description('Automated performance reviews for your OpenClaw agent team')
   .version('0.1.0');
 
 program.addCommand(createEmitCommand());
