@@ -96,6 +96,15 @@ Common flags: \`--agent <id>\`, \`--since <time>\`, \`--json\`, \`--compact\`
 \`\`\`bash
 clawiq tags                        # list all tags
 \`\`\`
+
+### Report
+\`\`\`bash
+clawiq report finding --agent <id> --severity <low|medium|high|critical> --title "..." [options]
+clawiq report list --since 7d      # list recent findings
+clawiq report show <finding-id>    # show finding details
+\`\`\`
+
+Common flags: \`--agent <id>\`, \`--severity <level>\`, \`--json\`, \`-q\` (quiet)
 `;
 
 const SHARED_SKILLS_DIR = join(OPENCLAW_DIR, 'workspace', 'skills');

@@ -206,6 +206,36 @@ export interface EventMarkersResponse {
   markers: EventMarker[];
 }
 
+
+// ── Finding types ─────────────────────────────────────────────────
+
+export type FindingSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+export interface FindingMeta {
+  title: string;
+  description?: string;
+  patch?: string;
+  evidence?: string;
+  target_agent: string;
+  finding_severity: FindingSeverity;
+}
+
+export interface Finding {
+  id: string;
+  timestamp: string;
+  agent_id?: string;
+  target_agent: string;
+  severity: FindingSeverity;
+  title: string;
+  description?: string;
+  patch?: string;
+  evidence?: string;
+}
+
+export interface FindingsResponse {
+  findings: Finding[];
+  total: number;
+}
 export class ClawIQClient {
   constructor(
     private endpoint: string,
@@ -357,4 +387,96 @@ export class ClawIQClient {
     const query = searchParams.toString();
     return this.request<EventMarkersResponse>('GET', `/v1/event-markers${query ? `?${query}` : ''}`);
   }
+
+  /**
+   * Submit a finding as a semantic event with type='finding'.
+   * Uses the existing emit endpoint; backend can add a dedicated endpoint later.
+   */
+  async submitFinding(finding: {
+    agent: string;
+    targetAgent: string;
+    severity: FindingSeverity;
+    title: string;
+    description?: string;
+    patch?: string;
+    evidence?: string;
+  }): Promise<EmitResponse> {
+    const event: ClawIQEvent = {
+      type: 'finding',
+      name: 'agent-finding',
+      source: 'agent',
+      severity: finding.severity === 'critical' ? 'error'
+        : finding.severity === 'high' ? 'error'
+        : finding.severity === 'medium' ? 'warn'
+        : 'info',
+      agent_id: finding.agent,
+      target: finding.targetAgent,
+      meta: {
+        title: finding.title,
+        description: finding.description,
+        patch: finding.patch,
+        evidence: finding.evidence,
+        target_agent: finding.targetAgent,
+        finding_severity: finding.severity,
+      } as Record<string, unknown>,
+    };
+
+    // Remove undefined meta fields
+    if (event.meta) {
+      for (const key of Object.keys(event.meta)) {
+        if (event.meta[key] === undefined) {
+          delete event.meta[key];
+        }
+      }
+    }
+
+    return this.emit([event]);
+  }
+
+  /**
+   * Query findings (semantic events with type='finding').
+   */
+  async getFindings(params: {
+    since?: string;
+    until?: string;
+    agent?: string;
+    targetAgent?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<FindingsResponse> {
+    const response = await this.getSemanticEvents({
+      since: params.since,
+      until: params.until,
+      agent: params.agent,
+      type: 'finding',
+      limit: params.limit,
+      offset: params.offset,
+    });
+
+    let findings: Finding[] = response.events.map((event) => {
+      const meta = (typeof event.meta === 'string' ? JSON.parse(event.meta) : event.meta) as FindingMeta | undefined;
+      return {
+        id: event.id,
+        timestamp: event.timestamp,
+        agent_id: event.agent_id,
+        target_agent: meta?.target_agent || event.target || '-',
+        severity: (meta?.finding_severity || 'medium') as FindingSeverity,
+        title: meta?.title || event.name,
+        description: meta?.description,
+        patch: meta?.patch,
+        evidence: meta?.evidence,
+      };
+    });
+
+    // Client-side filter by target agent if specified
+    if (params.targetAgent) {
+      findings = findings.filter((f) => f.target_agent === params.targetAgent);
+    }
+
+    return {
+      findings,
+      total: params.targetAgent ? findings.length : response.total,
+    };
+  }
+
 }

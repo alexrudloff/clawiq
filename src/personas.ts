@@ -95,7 +95,7 @@ The human reviews and applies patches. Never auto-applied.
 Emit events for system monitoring:
 - **Start review:** \\\`clawiq emit task performance-review -q --agent ${agent.id} --quality-tags started &\\\`
 - **Complete review:** \\\`clawiq emit task performance-review -q --agent ${agent.id} &\\\`
-- **Finding:** \\\`clawiq emit note finding -q --agent ${agent.id} --meta '{"agent":"...","issue":"...","severity":"..."}' &\\\`
+- **Finding:** \\\`clawiq report finding --agent <target-agent> --severity <level> --title "..." --description "..." --patch "..." --evidence "..."\\\`
 - **Error:** \\\`clawiq emit error <name> -q --agent ${agent.id} --severity error --meta '{"reason":"..."}' &\\\`
 
 Run in background with \\\`&\\\`, always include \\\`-q --agent ${agent.id}\\\`.
@@ -224,11 +224,15 @@ Once per day (evening), run a full performance review. This is your core job.
    - Agents burning tokens on work that doesn't show up as useful output
    - Patterns the agent repeats every session without learning
 
-5. **Write findings** to \\\`memory/YYYY-MM-DD.md\\\`:
-   - What agents actually did (from transcripts)
-   - What telemetry revealed that transcripts didn't (cost, errors, patterns)
-   - **Behavioral patches** — the actual text to add/change in agent config files
-   - Questions worth investigating further
+5. **Submit findings** via ClawIQ CLI:
+   \\\`\\\`\\\`bash
+   clawiq report finding --agent <target-agent> --severity <level> \
+     --title "Short description" \
+     --description "What you found and why it matters" \
+     --patch "The actual text to add/change in agent config" \
+     --evidence "Supporting data from OTEL + sessions"
+   \\\`\\\`\\\`
+   Also log a summary to \\\`memory/YYYY-MM-DD.md\\\` for your own continuity.
 
 6. **Signal completion:**
    \\\`\\\`\\\`bash
@@ -253,10 +257,18 @@ export function generateTools(agent: Agent): string {
 
 Full read/write access to ClawIQ telemetry data.
 
-### Emit - Report findings
+### Emit - Signal activity
 \\\`\\\`\\\`bash
-clawiq emit note finding -q --agent ${agent.id} --meta '{"agent":"...","issue":"..."}' &
 clawiq emit task performance-review -q --agent ${agent.id} --quality-tags started &
+clawiq emit task performance-review -q --agent ${agent.id} &
+\\\`\\\`\\\`
+
+### Report - Submit findings
+\\\`\\\`\\\`bash
+clawiq report finding --agent <target-agent> --severity <level> \
+  --title "..." --description "..." --patch "..." --evidence "..."
+clawiq report list --since 7d
+clawiq report show <finding-id>
 \\\`\\\`\\\`
 
 ### Pull - Query telemetry

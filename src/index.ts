@@ -6,6 +6,7 @@ import { createTagsCommand } from './commands/tags.js';
 
 import { createInitCommand } from './commands/init.js';
 import { createPullCommand } from './commands/pull.js';
+import { createReportCommand } from './commands/report.js';
 
 const program = new Command();
 
@@ -19,5 +20,6 @@ program.addCommand(createTagsCommand());
 
 program.addCommand(createInitCommand());
 program.addCommand(createPullCommand());
+program.addCommand(createReportCommand());
 
 program.parse();
