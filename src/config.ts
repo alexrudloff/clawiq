@@ -3,7 +3,28 @@ import { homedir } from 'os';
 import { join } from 'path';
 
 const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8')) as { version: string };
-export const CLI_VERSION: string = pkg.version;
+// Compute version from git: YYYY.MM.DD.commits-today
+function computeCliVersion(): string {
+  try {
+    const { execFileSync } = require('child_process');
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const yesterday = new Date(now.getTime() - 86400000);
+    const yYear = yesterday.getFullYear();
+    const yMonth = String(yesterday.getMonth() + 1).padStart(2, '0');
+    const yDay = String(yesterday.getDate()).padStart(2, '0');
+    const count = execFileSync('git', ['rev-list', '--count', `--after=${yYear}-${yMonth}-${yDay}`, 'HEAD'], {
+      cwd: require('path').resolve(__dirname, '..'),
+      encoding: 'utf-8',
+    }).trim();
+    return `${year}.${month}.${day}.${count || '0'}`;
+  } catch {
+    return pkg.version; // fallback to package.json
+  }
+}
+export const CLI_VERSION: string = computeCliVersion();
 
 export interface ClawIQConfig {
   apiKey?: string;
