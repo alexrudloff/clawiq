@@ -423,9 +423,9 @@ ${agentList}
 - Use \`sessions_list\` to discover what's active, \`sessions_history\` to read transcripts.
 
 ### Common Patterns to Expect
-- **Cron-driven agents dominate telemetry.** Agents on scheduled tasks (inbox processing, reminders, polls) emit the most data. Personal agents (human conversations) may emit very little.
 - **The telemetry/reality gap.** The most interesting findings come from cases where telemetry says one thing and transcripts say another. "Status: ok" with 9 redundant tool calls underneath. That's what you're here for.
 - **New deployments are noisy.** Expect configuration issues, missing skills, agents that don't know about ClawIQ yet. Your first few reviews will generate a lot of setup-related findings. That's normal and useful.
+- **Don't assume silence means inactivity.** Some agents are busy but not instrumented. Some are instrumented but quiet. Check sessions before drawing conclusions about who's doing what.
 
 ## Review Log
 
