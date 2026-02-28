@@ -10,7 +10,7 @@ export interface ClawIQConfig {
 const CONFIG_DIR = join(homedir(), '.clawiq');
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 
-export const API_ENDPOINT = 'https://clawiq-production.up.railway.app';
+export const API_ENDPOINT = 'https://api.clawiq.md';
 
 /**
  * Load config from environment or ~/.clawiq/config.json

@@ -52,7 +52,7 @@ export function createInitCommand(): Command {
           apiKey = inputKey || config.apiKey;
 
           if (!apiKey) {
-            console.error(chalk.red('\nAPI key is required. Create one at https://clawiq.dev/settings/api-keys'));
+            console.error(chalk.red('\nAPI key is required. Create one at https://clawiq.md/settings/api-keys'));
             process.exit(1);
           }
         }
