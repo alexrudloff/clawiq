@@ -425,6 +425,14 @@ ${agentList}
 - **New deployments are noisy.** Expect configuration issues, missing skills, agents that don't know about ClawIQ yet. Your first few reviews will generate a lot of setup-related findings. That's normal and useful.
 - **Don't assume silence means inactivity.** Some agents are busy but not instrumented. Some are instrumented but quiet. Check sessions before drawing conclusions about who's doing what.
 
+## Model Requirements
+
+This agent needs a capable model to do useful work — reading session transcripts, cross-referencing telemetry, and writing specific behavioral patches requires real reasoning.
+
+**Minimum:** Claude Sonnet (anthropic/claude-sonnet-4-6) or GPT-4o (openai/gpt-4o)
+
+If you're running on Haiku, GPT-4o-mini, or similar: findings will be shallow, behavioral patches will be vague, and cross-referencing telemetry with sessions won't work well. Upgrade before assuming ClawIQ isn't useful.
+
 ## Review Log
 
 *(Update this after each nightly review with a one-line summary)*
