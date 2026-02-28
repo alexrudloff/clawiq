@@ -231,58 +231,31 @@ export function createInitCommand(): Command {
         // ── [9] Create nightly performance review cron job ──────
         const cronSpinner = ora('Creating nightly performance review cron...').start();
         try {
+          const cronMessage = 'Run your nightly performance review. Follow the workflow in HEARTBEAT.md. Pull OTEL data first, identify interesting sessions, read only those, cross-reference, and submit findings via clawiq report finding. Write a summary to memory/ for todays date.';
           await new Promise<void>((resolve, reject) => {
-            const cronPayload = JSON.stringify({
-              name: 'Lex Nightly Performance Review',
-              schedule: {
-                kind: 'cron',
-                expr: '0 3 * * *',
-                tz: 'America/New_York'
-              },
-              sessionTarget: 'isolated',
-              payload: {
-                kind: 'agentTurn',
-                message: 'Run your nightly performance review. Follow the workflow in HEARTBEAT.md — pull OTEL data first, identify interesting sessions, read only those, cross-reference, and submit findings via clawiq report finding. Write a summary to memory/today\'s date.md.',
-                timeoutSeconds: 600
-              },
-              delivery: {
-                mode: 'none'
-              },
-              enabled: true
-            });
-
-            execFile('openclaw', ['cron', 'add', '--agent', agentId, '--json', cronPayload], (error, stdout) => {
-              if (error) reject(error);
-              else resolve();
+            execFile('openclaw', [
+              'cron', 'add',
+              '--agent', agentId,
+              '--name', `${CLAWIQ_AGENT.name} Nightly Performance Review`,
+              '--cron', '0 3 * * *',
+              '--tz', 'America/New_York',
+              '--session', 'isolated',
+              '--message', cronMessage,
+              '--timeout-seconds', '600',
+              '--no-deliver',
+            ], (error, stdout, stderr) => {
+              if (error) {
+                console.error(chalk.dim(`  Debug: ${error.message}`));
+                if (stderr) console.error(chalk.dim(`  Stderr: ${stderr}`));
+                reject(error);
+              } else {
+                resolve();
+              }
             });
           });
           cronSpinner.succeed('Nightly review scheduled (3:00 AM daily)');
         } catch {
-          // Fallback: try via the gateway API directly
-          try {
-            await new Promise<void>((resolve, reject) => {
-              const addCmd = `curl -s -X POST http://localhost:3456/api/cron/jobs -H "Content-Type: application/json" -d '${JSON.stringify({
-                agentId,
-                name: 'Lex Nightly Performance Review',
-                schedule: { kind: 'cron', expr: '0 3 * * *', tz: 'America/New_York' },
-                sessionTarget: 'isolated',
-                payload: {
-                  kind: 'agentTurn',
-                  message: "Run your nightly performance review. Follow the workflow in HEARTBEAT.md — pull OTEL data first, identify interesting sessions, read only those, cross-reference, and submit findings via clawiq report finding. Write a summary to memory/ for today's date.",
-                  timeoutSeconds: 600
-                },
-                delivery: { mode: 'none' },
-                enabled: true
-              })}'`;
-              execFile('sh', ['-c', addCmd], (error) => {
-                if (error) reject(error);
-                else resolve();
-              });
-            });
-            cronSpinner.succeed('Nightly review scheduled (3:00 AM daily)');
-          } catch {
-            cronSpinner.warn('Could not create cron job. Set up manually: openclaw cron add');
-          }
+          cronSpinner.warn('Could not create cron job. Run: openclaw cron add --agent ' + agentId + ' --cron "0 3 * * *" --tz America/New_York --session isolated --message "Run nightly review" --timeout-seconds 600 --no-deliver');
         }
 
         // ── [10] Send setup-complete marker ───────────────────────
