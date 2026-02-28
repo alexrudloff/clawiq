@@ -78,6 +78,74 @@ function createInitCommand() {
                 console.log(chalk_1.default.green('\u2713') + ' diagnostics-otel plugin enabled');
             }
             console.log(chalk_1.default.green('\u2713') + ' OTEL diagnostics configured');
+            // ── [3c] Check and install OTEL dependencies ─────────────
+            const otelSpinner = (0, ora_1.default)('Checking OTEL dependencies...').start();
+            try {
+                // Find OpenClaw install directory
+                const openclawBin = await new Promise((resolve, reject) => {
+                    (0, child_process_1.execFile)('which', ['openclaw'], (error, stdout) => {
+                        if (error)
+                            reject(error);
+                        else
+                            resolve(stdout.trim());
+                    });
+                });
+                // Resolve symlink to get the actual package dir
+                const realPath = await new Promise((resolve, reject) => {
+                    (0, child_process_1.execFile)('readlink', ['-f', openclawBin], (error, stdout) => {
+                        if (error) {
+                            // macOS readlink doesn't support -f, try realpath
+                            (0, child_process_1.execFile)('realpath', [openclawBin], (error2, stdout2) => {
+                                if (error2)
+                                    reject(error2);
+                                else
+                                    resolve(stdout2.trim());
+                            });
+                        }
+                        else
+                            resolve(stdout.trim());
+                    });
+                });
+                // Go up to the package root (from openclaw.mjs or bin/)
+                const path = await import('path');
+                let openclawDir = path.dirname(realPath);
+                // If we landed in a bin/ dir, go up one more
+                if (openclawDir.endsWith('/bin'))
+                    openclawDir = path.dirname(openclawDir);
+                // Check if @opentelemetry/api exists in the package
+                const otelApiPath = path.join(openclawDir, 'node_modules', '@opentelemetry', 'api');
+                const fs = await import('fs');
+                if (!fs.existsSync(otelApiPath)) {
+                    otelSpinner.text = 'Installing OTEL dependencies (this may take a moment)...';
+                    const otelDeps = [
+                        '@opentelemetry/api',
+                        '@opentelemetry/exporter-logs-otlp-http',
+                        '@opentelemetry/exporter-trace-otlp-http',
+                        '@opentelemetry/exporter-metrics-otlp-http',
+                        '@opentelemetry/sdk-node',
+                        '@opentelemetry/sdk-trace-node',
+                        '@opentelemetry/sdk-logs',
+                        '@opentelemetry/sdk-metrics',
+                        '@opentelemetry/resources',
+                        '@opentelemetry/semantic-conventions',
+                    ];
+                    await new Promise((resolve, reject) => {
+                        (0, child_process_1.execFile)('npm', ['install', '--no-save', ...otelDeps], { cwd: openclawDir }, (error, stdout, stderr) => {
+                            if (error)
+                                reject(error);
+                            else
+                                resolve();
+                        });
+                    });
+                    otelSpinner.succeed('OTEL dependencies installed');
+                }
+                else {
+                    otelSpinner.succeed('OTEL dependencies already installed');
+                }
+            }
+            catch (err) {
+                otelSpinner.warn('Could not verify OTEL dependencies. If traces are missing, run: npm install @opentelemetry/api @opentelemetry/exporter-logs-otlp-http @opentelemetry/exporter-trace-otlp-http @opentelemetry/exporter-metrics-otlp-http @opentelemetry/sdk-node @opentelemetry/sdk-trace-node @opentelemetry/sdk-logs @opentelemetry/sdk-metrics @opentelemetry/resources @opentelemetry/semantic-conventions in your OpenClaw install directory');
+            }
             // ── [4] Create ClawIQ agent workspace ────────────────────
             const agentId = personas_js_1.CLAWIQ_AGENT.id;
             if ((0, workspace_js_1.workspaceExists)(agentId)) {
