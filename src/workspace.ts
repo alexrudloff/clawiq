@@ -75,6 +75,7 @@ export function workspaceExists(agentId: string): boolean {
 }
 
 const CLAWIQ_TOOLS_MARKER = '<!-- clawiq-tools -->';
+const CLAWIQ_TOOLS_END_MARKER = '<!-- /clawiq-tools -->';
 
 const CLAWIQ_TOOLS_SECTION = `
 ${CLAWIQ_TOOLS_MARKER}
@@ -114,6 +115,7 @@ clawiq report show <finding-id>    # show finding details
 \`\`\`
 
 Common flags: \`--agent <id>\`, \`--severity <level>\`, \`--json\`, \`-q\` (quiet)
+${CLAWIQ_TOOLS_END_MARKER}
 `;
 
 const SHARED_SKILLS_DIR = join(OPENCLAW_DIR, 'workspace', 'skills');
@@ -277,6 +279,13 @@ export function removeClawiqTools(workspacePath: string): boolean {
   const markerIndex = existing.indexOf(CLAWIQ_TOOLS_MARKER);
   if (markerIndex === -1) {
     return false;
+  }
+  const endIndex = existing.indexOf(CLAWIQ_TOOLS_END_MARKER, markerIndex);
+  if (endIndex !== -1) {
+    const after = endIndex + CLAWIQ_TOOLS_END_MARKER.length;
+    const updated = (existing.slice(0, markerIndex) + existing.slice(after)).trimEnd();
+    writeFileSync(toolsPath, updated.length ? updated + '\n' : '');
+    return true;
   }
 
   const updated = existing.slice(0, markerIndex).trimEnd();

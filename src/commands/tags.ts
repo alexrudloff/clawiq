@@ -1,24 +1,21 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import Table from 'cli-table3';
-import { loadConfig, requireApiKey, API_ENDPOINT, CLI_VERSION } from '../config.js';
-import { ClawIQClient } from '../api.js';
-import { handleError } from '../format.js';
+import { buildClient } from '../client.js';
+import { handleError, parseIntOption } from '../format.js';
+import { formatTimeAgo } from '../time.js';
 
 export function createTagsCommand(): Command {
   const cmd = new Command('tags')
     .description('List tags used in your events')
     .option('--api-key <key>', 'ClawIQ API key')
     .option('--since <duration>', 'Time range (e.g., 24h, 7d, 30d)', '7d')
-    .option('--limit <n>', 'Maximum tags per category', parseInt, 20)
+    .option('--limit <n>', 'Maximum tags per category', parseIntOption, 20)
     .option('--category <cat>', 'Filter by category: quality, action, domain')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
-      const config = loadConfig();
-
       try {
-        const apiKey = requireApiKey(config, options.apiKey);
-        const client = new ClawIQClient(API_ENDPOINT, apiKey, CLI_VERSION);
+        const client = buildClient(options.apiKey);
 
         const tags = await client.getTags(options.since, options.limit);
 
@@ -65,14 +62,4 @@ export function createTagsCommand(): Command {
     });
 
   return cmd;
-}
-
-function formatTimeAgo(date: Date): string {
-  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-
-  if (seconds < 60) return 'just now';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-  return date.toLocaleDateString();
 }

@@ -1,730 +1,40 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import Table from 'cli-table3';
-import {
-  ClawIQClient,
-  ErrorRecord,
-  EventsResponse,
-  QueryParams,
-  SemanticEvent,
-  SpanEvent,
-  TraceRecord,
-} from '../api.js';
-import { API_ENDPOINT, loadConfig, requireApiKey, CLI_VERSION } from '../config.js';
+import { ErrorRecord, TraceRecord } from '../api.js';
+import { buildClient } from '../client.js';
 import { resolveTimeRange } from '../time.js';
-import { TYPE_ICONS, parseIntOption, handleError } from '../format.js';
-
-interface CommonPullOptions {
-  apiKey?: string;
-  since?: string;
-  until?: string;
-  limit?: number;
-  offset?: number;
-  page?: number;
-  json?: boolean;
-  compact?: boolean;
-}
-
-interface PullEventsOptions extends CommonPullOptions {
-  channel?: string;
-  model?: string;
-  status?: string;
-  session?: string;
-  search?: string;
-  agent?: string;
-}
-
-interface PullSemanticOptions extends CommonPullOptions {
-  source?: string;
-  type?: string;
-  severity?: string;
-  agent?: string;
-  name?: string;
-}
-
-interface PullTracesOptions extends CommonPullOptions {
-  channel?: string;
-  status?: string;
-  model?: string;
-  session?: string;
-  search?: string;
-  agent?: string;
-}
-
-interface PullErrorsOptions extends CommonPullOptions {
-  channel?: string;
-  type?: string;
-  trace?: string;
-  model?: string;
-  session?: string;
-  search?: string;
-  agent?: string;
-}
-
-interface PullMarkersOptions extends CommonPullOptions {
-  source?: string;
-  type?: string;
-  severity?: string;
-  agent?: string;
-  name?: string;
-}
-
-interface PullAllOptions extends CommonPullOptions {
-  channel?: string;
-  model?: string;
-  status?: string;
-  session?: string;
-  search?: string;
-  agent?: string;
-  source?: string;
-  type?: string;
-  trace?: string;
-  severity?: string;
-  name?: string;
-}
-
-interface PageInfo {
-  limit: number;
-  offset: number;
-  page: number;
-}
-
-interface Marker {
-  timestamp: string;
-  type: string;
-  name: string;
-  severity: string;
-  count: number;
-}
-
-type TimelineKind = 'trace' | 'error' | 'marker';
-
-interface TimelineItem {
-  kind: TimelineKind;
-  timestamp: string;
-  summary: string;
-  trace_id?: string;
-  channel?: string;
-  model?: string;
-  agent?: string;
-  severity?: string;
-}
-
-function validatePositiveInt(value: number, name: string): number {
-  if (!Number.isInteger(value) || value <= 0) {
-    throw new Error(`--${name} must be a positive integer`);
-  }
-  return value;
-}
-
-function validateNonNegativeInt(value: number, name: string): number {
-  if (!Number.isInteger(value) || value < 0) {
-    throw new Error(`--${name} must be a non-negative integer`);
-  }
-  return value;
-}
-
-function computePageInfo(options: CommonPullOptions, defaultLimit = 50): PageInfo {
-  const limit = validatePositiveInt(options.limit ?? defaultLimit, 'limit');
-  const offsetFromPage = options.page !== undefined
-    ? (validatePositiveInt(options.page, 'page') - 1) * limit
-    : 0;
-  const offset = validateNonNegativeInt(options.offset ?? offsetFromPage, 'offset');
-  return {
-    limit,
-    offset,
-    page: Math.floor(offset / limit) + 1,
-  };
-}
-
-function getAgentFromSession(sessionId: string): string {
-  const parts = sessionId.split(':');
-  if (parts.length >= 2 && parts[0] === 'agent') {
-    return parts[1];
-  }
-  return sessionId || '-';
-}
-
-function matchesAgent(sessionId: string, agent: string): boolean {
-  return sessionId.includes(`agent:${agent}:`);
-}
-
-function containsInsensitive(text: string, query: string): boolean {
-  return text.toLowerCase().includes(query.toLowerCase());
-}
-
-function simplifyStatus(statusCode: string): string {
-  if (statusCode === 'STATUS_CODE_ERROR') {
-    return 'error';
-  }
-  if (statusCode === 'STATUS_CODE_OK' || statusCode === 'STATUS_CODE_UNSET') {
-    return 'success';
-  }
-  return statusCode;
-}
-
-function printPaginationFooter(
-  label: string,
-  itemCount: number,
-  page: PageInfo,
-  total?: number
-): void {
-  if (total !== undefined) {
-    console.log(
-      chalk.dim(
-        `\nShowing ${itemCount} of ${total} ${label} (page ${page.page}, limit ${page.limit}, offset ${page.offset})`
-      )
-    );
-    if (page.offset + itemCount < total) {
-      console.log(chalk.dim(`Next page: --offset ${page.offset + page.limit}`));
-    }
-    return;
-  }
-
-  console.log(
-    chalk.dim(
-      `\nShowing ${itemCount} ${label} (page ${page.page}, limit ${page.limit}, offset ${page.offset})`
-    )
-  );
-  if (itemCount === page.limit) {
-    console.log(chalk.dim(`Next page: --offset ${page.offset + page.limit}`));
-  }
-}
-
-function printTracesCompact(items: TraceRecord[]): void {
-  for (const trace of items) {
-    const time = new Date(trace.start_time).toLocaleTimeString();
-    const status = simplifyStatus(trace.status);
-    const statusText = status === 'error' ? chalk.red(status) : chalk.green(status);
-    const model = trace.model || '-';
-    console.log(
-      `${chalk.dim(time)} ${statusText} ${trace.trace_id} ${chalk.cyan(model)} ${chalk.dim(trace.channel || '-')}`
-    );
-  }
-}
-
-function printTracesTable(items: TraceRecord[]): void {
-  const table = new Table({
-    head: [
-      chalk.dim('Time'),
-      chalk.dim('Status'),
-      chalk.dim('Trace'),
-      chalk.dim('Agent'),
-      chalk.dim('Channel'),
-      chalk.dim('Model'),
-      chalk.dim('Tokens'),
-      chalk.dim('Duration'),
-    ],
-    style: { head: [], border: [] },
-  });
-
-  for (const trace of items) {
-    const status = simplifyStatus(trace.status);
-    const statusText = status === 'error' ? chalk.red(status) : chalk.green(status);
-    const agent = trace.agent_id || (trace.session_id ? getAgentFromSession(trace.session_id) : '-');
-    table.push([
-      chalk.dim(new Date(trace.start_time).toLocaleString()),
-      statusText,
-      trace.trace_id,
-      agent,
-      trace.channel || '-',
-      trace.model || '-',
-      `${trace.tokens_input + trace.tokens_output}`,
-      `${Math.round(trace.duration_ms)}ms`,
-    ]);
-  }
-
-  console.log(table.toString());
-}
-
-function printErrorsCompact(items: ErrorRecord[]): void {
-  for (const error of items) {
-    const time = new Date(error.timestamp).toLocaleTimeString();
-    console.log(
-      `${chalk.dim(time)} ${chalk.red(error.error_type)} ${error.trace_id} ${chalk.dim(error.channel || '-')}`
-    );
-  }
-}
-
-function printErrorsTable(items: ErrorRecord[]): void {
-  const table = new Table({
-    head: [
-      chalk.dim('Time'),
-      chalk.dim('Type'),
-      chalk.dim('Trace'),
-      chalk.dim('Agent'),
-      chalk.dim('Channel'),
-      chalk.dim('Message'),
-    ],
-    style: { head: [], border: [] },
-    wordWrap: true,
-  });
-
-  for (const error of items) {
-    const agent = error.agent_id || (error.session_id ? getAgentFromSession(error.session_id) : '-');
-    table.push([
-      chalk.dim(new Date(error.timestamp).toLocaleString()),
-      chalk.red(error.error_type),
-      error.trace_id,
-      agent,
-      error.channel || '-',
-      error.message || '-',
-    ]);
-  }
-
-  console.log(table.toString());
-}
-
-function printSpanEventsCompact(items: SpanEvent[]): void {
-  for (const event of items) {
-    const time = new Date(event.start_time).toLocaleTimeString();
-    const status = simplifyStatus(event.status_code);
-    const statusText = status === 'error' ? chalk.red(status) : chalk.green(status);
-    const agent = event.agent_id || getAgentFromSession(event.session_id);
-    console.log(
-      `${chalk.dim(time)} ${statusText} ${chalk.cyan(event.name)} ${chalk.dim(agent)} ${chalk.dim(event.channel || '-')}`
-    );
-  }
-}
-
-function printSpanEventsTable(items: SpanEvent[]): void {
-  const table = new Table({
-    head: [
-      chalk.dim('Time'),
-      chalk.dim('Status'),
-      chalk.dim('Name'),
-      chalk.dim('Agent'),
-      chalk.dim('Channel'),
-      chalk.dim('Model'),
-      chalk.dim('Outcome'),
-      chalk.dim('Duration'),
-    ],
-    style: { head: [], border: [] },
-    wordWrap: true,
-  });
-
-  for (const event of items) {
-    const status = simplifyStatus(event.status_code);
-    const statusText = status === 'error' ? chalk.red(status) : chalk.green(status);
-    const agent = event.agent_id || getAgentFromSession(event.session_id);
-    table.push([
-      chalk.dim(new Date(event.start_time).toLocaleString()),
-      statusText,
-      chalk.cyan(event.name),
-      agent,
-      event.channel || '-',
-      event.model || '-',
-      event.outcome || '-',
-      `${Math.round(event.duration_ms)}ms`,
-    ]);
-  }
-
-  console.log(table.toString());
-}
-
-function printSemanticCompact(items: SemanticEvent[]): void {
-  for (const event of items) {
-    const icon = TYPE_ICONS[event.type] || '•';
-    const severity =
-      event.severity === 'error'
-        ? chalk.red(event.severity)
-        : event.severity === 'warn'
-        ? chalk.yellow(event.severity)
-        : chalk.blue(event.severity);
-    const time = new Date(event.timestamp).toLocaleTimeString();
-    const agent = event.agent_id ? chalk.dim(` (${event.agent_id})`) : '';
-    console.log(`${chalk.dim(time)} ${icon} ${severity} ${chalk.cyan(event.name)}${agent}`);
-  }
-}
-
-function printSemanticTable(items: SemanticEvent[]): void {
-  const table = new Table({
-    head: [
-      chalk.dim('Time'),
-      chalk.dim('Type'),
-      chalk.dim('Name'),
-      chalk.dim('Severity'),
-      chalk.dim('Agent'),
-      chalk.dim('Channel'),
-    ],
-    style: { head: [], border: [] },
-    wordWrap: true,
-  });
-
-  for (const event of items) {
-    const icon = TYPE_ICONS[event.type] || '•';
-    const severity =
-      event.severity === 'error'
-        ? chalk.red(event.severity)
-        : event.severity === 'warn'
-        ? chalk.yellow(event.severity)
-        : chalk.blue(event.severity);
-    table.push([
-      chalk.dim(new Date(event.timestamp).toLocaleString()),
-      `${icon} ${event.type}`,
-      chalk.cyan(event.name),
-      severity,
-      event.agent_id || '-',
-      event.channel || '-',
-    ]);
-  }
-
-  console.log(table.toString());
-}
-
-function printMarkersCompact(items: Marker[]): void {
-  for (const marker of items) {
-    const time = new Date(marker.timestamp).toLocaleTimeString();
-    const severity =
-      marker.severity === 'error'
-        ? chalk.red(marker.severity)
-        : marker.severity === 'warn'
-        ? chalk.yellow(marker.severity)
-        : chalk.blue(marker.severity);
-    console.log(
-      `${chalk.dim(time)} ${severity} ${marker.type}:${chalk.cyan(marker.name)} x${marker.count}`
-    );
-  }
-}
-
-function printMarkersTable(items: Marker[]): void {
-  const table = new Table({
-    head: [
-      chalk.dim('Time'),
-      chalk.dim('Type'),
-      chalk.dim('Name'),
-      chalk.dim('Severity'),
-      chalk.dim('Count'),
-    ],
-    style: { head: [], border: [] },
-  });
-
-  for (const marker of items) {
-    const severity =
-      marker.severity === 'error'
-        ? chalk.red(marker.severity)
-        : marker.severity === 'warn'
-        ? chalk.yellow(marker.severity)
-        : chalk.blue(marker.severity);
-
-    table.push([
-      chalk.dim(new Date(marker.timestamp).toLocaleString()),
-      marker.type,
-      chalk.cyan(marker.name),
-      severity,
-      marker.count.toString(),
-    ]);
-  }
-
-  console.log(table.toString());
-}
-
-function kindLabel(kind: TimelineKind): string {
-  if (kind === 'error') {
-    return chalk.red('error');
-  }
-  if (kind === 'marker') {
-    return chalk.yellow('marker');
-  }
-  return chalk.blue('trace');
-}
-
-function printTimelineCompact(items: TimelineItem[]): void {
-  for (const item of items) {
-    const time = new Date(item.timestamp).toLocaleTimeString();
-    const channel = item.channel ? chalk.dim(item.channel) : chalk.dim('-');
-    console.log(`${chalk.dim(time)} ${kindLabel(item.kind)} ${item.summary} ${channel}`);
-  }
-}
-
-function printTimelineTable(items: TimelineItem[]): void {
-  const table = new Table({
-    head: [
-      chalk.dim('Time'),
-      chalk.dim('Kind'),
-      chalk.dim('Summary'),
-      chalk.dim('Agent'),
-      chalk.dim('Channel'),
-      chalk.dim('Model'),
-      chalk.dim('Trace'),
-    ],
-    style: { head: [], border: [] },
-    wordWrap: true,
-  });
-
-  for (const item of items) {
-    table.push([
-      chalk.dim(new Date(item.timestamp).toLocaleString()),
-      kindLabel(item.kind),
-      item.summary,
-      item.agent || '-',
-      item.channel || '-',
-      item.model || '-',
-      item.trace_id || '-',
-    ]);
-  }
-
-  console.log(table.toString());
-}
-
-function buildClient(options: CommonPullOptions): ClawIQClient {
-  const config = loadConfig();
-  const apiKey = requireApiKey(config, options.apiKey);
-  return new ClawIQClient(API_ENDPOINT, apiKey, CLI_VERSION);
-}
-
-function toTraceRecord(event: SpanEvent): TraceRecord {
-  return {
-    trace_id: event.trace_id,
-    start_time: event.start_time,
-    duration_ms: event.duration_ms,
-    channel: event.channel,
-    model: event.model,
-    session_id: event.session_id,
-    agent_id: event.agent_id || undefined,
-    tokens_input: event.tokens_input,
-    tokens_output: event.tokens_output,
-    status: event.status_code,
-    error: event.error_type || undefined,
-  };
-}
-
-function toErrorRecord(event: SpanEvent): ErrorRecord {
-  return {
-    timestamp: event.start_time,
-    trace_id: event.trace_id,
-    channel: event.channel,
-    error_type: event.error_type || 'unknown',
-    message: event.error_type || event.status_code,
-    session_id: event.session_id,
-    agent_id: event.agent_id || undefined,
-    model: event.model,
-  };
-}
-
-function bucket5m(iso: string): string {
-  const date = new Date(iso);
-  date.setUTCSeconds(0, 0);
-  date.setUTCMinutes(date.getUTCMinutes() - (date.getUTCMinutes() % 5));
-  return date.toISOString();
-}
-
-async function fetchAllSemanticEvents(client: ClawIQClient, params: QueryParams): Promise<SemanticEvent[]> {
-  const batchSize = 500;
-  const maxEvents = 50_000;
-  const all: SemanticEvent[] = [];
-  let offset = 0;
-
-  while (all.length < maxEvents) {
-    const response = await client.getSemanticEvents({
-      ...params,
-      limit: batchSize,
-      offset,
-    });
-
-    all.push(...response.events);
-    if (response.events.length < batchSize) {
-      break;
-    }
-    offset += batchSize;
-  }
-
-  return all;
-}
-
-function buildMarkerRecords(events: SemanticEvent[]): Marker[] {
-  const markerMap = new Map<string, Marker>();
-  for (const event of events) {
-    const timestamp = bucket5m(event.timestamp);
-    const key = `${timestamp}|${event.type}|${event.name}|${event.severity}`;
-    const existing = markerMap.get(key);
-    if (existing) {
-      existing.count += 1;
-    } else {
-      markerMap.set(key, {
-        timestamp,
-        type: event.type,
-        name: event.name,
-        severity: event.severity,
-        count: 1,
-      });
-    }
-  }
-
-  return [...markerMap.values()].sort((a, b) => {
-    if (a.timestamp === b.timestamp) {
-      return b.count - a.count;
-    }
-    return a.timestamp < b.timestamp ? 1 : -1;
-  });
-}
-
-async function fetchTraceRecords(
-  client: ClawIQClient,
-  options: PullTracesOptions | PullAllOptions,
-  start: string,
-  end: string,
-  limit: number,
-  offset: number
-): Promise<{ traces: TraceRecord[]; total?: number }> {
-  const needsEventFallback =
-    Boolean(options.agent) ||
-    Boolean(options.model) ||
-    Boolean(options.session) ||
-    Boolean(options.search) ||
-    options.status === 'success';
-
-  if (needsEventFallback) {
-    const serverSearch = options.agent ? `agent:${options.agent}:` : options.search;
-    const response = await client.getEvents({
-      since: start,
-      until: end,
-      channel: options.channel,
-      model: options.model,
-      status: options.status,
-      session: options.session,
-      search: serverSearch,
-      limit,
-      offset,
-    });
-
-    let events = response.events;
-    let total: number | undefined = response.total;
-    if (options.agent) {
-      events = events.filter((event) => matchesAgent(event.session_id, options.agent!));
-      total = undefined;
-    }
-    if (options.agent && options.search) {
-      events = events.filter(
-        (event) =>
-          containsInsensitive(event.name, options.search!) ||
-          containsInsensitive(event.model, options.search!) ||
-          containsInsensitive(event.session_id, options.search!)
-      );
-      total = undefined;
-    }
-
-    return {
-      traces: events.map(toTraceRecord),
-      total,
-    };
-  }
-
-  let traceStatus = options.status;
-  if (traceStatus === 'error') {
-    traceStatus = 'STATUS_CODE_ERROR';
-  }
-
-  const response = await client.getTraces({
-    since: start,
-    until: end,
-    channel: options.channel,
-    status: traceStatus,
-    limit,
-    offset,
-  });
-
-  // Current `/v1/traces` returns page length as total in OSS mode.
-  return {
-    traces: response.traces,
-  };
-}
-
-async function fetchErrorRecords(
-  client: ClawIQClient,
-  options: PullErrorsOptions | PullAllOptions,
-  start: string,
-  end: string,
-  limit: number,
-  offset: number
-): Promise<{ errors: ErrorRecord[]; total?: number }> {
-  const needsEventFallback =
-    Boolean(options.agent) ||
-    Boolean(options.model) ||
-    Boolean(options.session) ||
-    Boolean(options.search);
-
-  let errors: ErrorRecord[];
-  let total: number | undefined;
-
-  if (needsEventFallback) {
-    const serverSearch = options.agent ? `agent:${options.agent}:` : options.search;
-    const response: EventsResponse = await client.getEvents({
-      since: start,
-      until: end,
-      channel: options.channel,
-      model: options.model,
-      status: 'error',
-      session: options.session,
-      search: serverSearch,
-      limit,
-      offset,
-    });
-
-    let events = response.events;
-    total = response.total;
-    if (options.agent) {
-      events = events.filter((event) => matchesAgent(event.session_id, options.agent!));
-      total = undefined;
-    }
-    if (options.agent && options.search) {
-      events = events.filter(
-        (event) =>
-          containsInsensitive(event.name, options.search!) ||
-          containsInsensitive(event.model, options.search!) ||
-          containsInsensitive(event.session_id, options.search!)
-      );
-      total = undefined;
-    }
-
-    errors = events.map(toErrorRecord);
-  } else {
-    const response = await client.getErrors({
-      since: start,
-      until: end,
-      channel: options.channel,
-      errorType: options.type,
-      traceId: options.trace,
-      limit,
-      offset,
-    });
-    errors = response.errors;
-    total = undefined;
-  }
-
-  if (options.type) {
-    errors = errors.filter((error) => error.error_type === options.type);
-    total = undefined;
-  }
-  if (options.trace) {
-    errors = errors.filter((error) => error.trace_id === options.trace);
-    total = undefined;
-  }
-
-  return { errors, total };
-}
-
-async function fetchMarkers(
-  client: ClawIQClient,
-  options: PullMarkersOptions | PullAllOptions,
-  start: string,
-  end: string
-): Promise<Marker[]> {
-  let events = await fetchAllSemanticEvents(client, {
-    since: start,
-    until: end,
-    source: options.source,
-    type: options.type,
-    severity: options.severity,
-    agent: options.agent,
-  });
-
-  if (options.name) {
-    events = events.filter((event) => containsInsensitive(event.name, options.name!));
-  }
-
-  return buildMarkerRecords(events);
-}
+import { parseIntOption, handleError } from '../format.js';
+import {
+  PullAllOptions,
+  PullErrorsOptions,
+  PullEventsOptions,
+  PullMarkersOptions,
+  PullSemanticOptions,
+  PullTracesOptions,
+  TimelineItem,
+} from './pull/types.js';
+import { computePageInfo, printPaginationFooter } from './pull/pagination.js';
+import {
+  containsInsensitive,
+  getAgentFromSession,
+  matchesAgent,
+  simplifyStatus,
+} from './pull/filters.js';
+import {
+  printErrorsCompact,
+  printErrorsTable,
+  printMarkersCompact,
+  printMarkersTable,
+  printSemanticCompact,
+  printSemanticTable,
+  printSpanEventsCompact,
+  printSpanEventsTable,
+  printTimelineCompact,
+  printTimelineTable,
+  printTracesCompact,
+  printTracesTable,
+} from './pull/formatters.js';
+import { fetchErrorRecords, fetchMarkers, fetchTraceRecords } from './pull/fetch.js';
 
 function buildAllCommand(): Command {
   return new Command('all')
@@ -751,7 +61,7 @@ function buildAllCommand(): Command {
     .option('--compact', 'Compact output')
     .action(async (options: PullAllOptions) => {
       try {
-        const client = buildClient(options);
+        const client = buildClient(options.apiKey);
         const page = computePageInfo(options);
         const range = resolveTimeRange(options.since, options.until, '24h');
 
@@ -764,7 +74,7 @@ function buildAllCommand(): Command {
           fetchMarkers(client, options, range.start, range.end),
         ]);
 
-        const traceItems: TimelineItem[] = traceResult.traces.map((trace) => ({
+        const traceItems: TimelineItem[] = traceResult.traces.map((trace: TraceRecord) => ({
           kind: 'trace',
           timestamp: trace.start_time,
           summary: `${simplifyStatus(trace.status)} ${trace.model || '-'} ${Math.round(trace.duration_ms)}ms`,
@@ -774,7 +84,7 @@ function buildAllCommand(): Command {
           agent: trace.agent_id || (trace.session_id ? getAgentFromSession(trace.session_id) : undefined),
         }));
 
-        const errorItems: TimelineItem[] = errorResult.errors.map((error) => ({
+        const errorItems: TimelineItem[] = errorResult.errors.map((error: ErrorRecord) => ({
           kind: 'error',
           timestamp: error.timestamp,
           summary: `${error.error_type}${error.message ? `: ${error.message}` : ''}`,
@@ -867,7 +177,7 @@ function buildEventsCommand(): Command {
     .option('--compact', 'Compact output')
     .action(async (options: PullEventsOptions) => {
       try {
-        const client = buildClient(options);
+        const client = buildClient(options.apiKey);
         const page = computePageInfo(options);
         const range = resolveTimeRange(options.since, options.until, '24h');
 
@@ -955,7 +265,7 @@ function buildSemanticCommand(): Command {
     .option('--compact', 'Compact output')
     .action(async (options: PullSemanticOptions) => {
       try {
-        const client = buildClient(options);
+        const client = buildClient(options.apiKey);
         const page = computePageInfo(options);
         const range = resolveTimeRange(options.since, options.until, '24h');
 
@@ -1032,7 +342,7 @@ function buildTracesCommand(): Command {
     .option('--compact', 'Compact output')
     .action(async (options: PullTracesOptions) => {
       try {
-        const client = buildClient(options);
+        const client = buildClient(options.apiKey);
         const page = computePageInfo(options);
         const range = resolveTimeRange(options.since, options.until, '24h');
         const result = await fetchTraceRecords(
@@ -1102,7 +412,7 @@ function buildErrorsCommand(): Command {
     .option('--compact', 'Compact output')
     .action(async (options: PullErrorsOptions) => {
       try {
-        const client = buildClient(options);
+        const client = buildClient(options.apiKey);
         const page = computePageInfo(options);
         const range = resolveTimeRange(options.since, options.until, '24h');
         const result = await fetchErrorRecords(
@@ -1170,7 +480,7 @@ function buildMarkersCommand(): Command {
     .option('--compact', 'Compact output')
     .action(async (options: PullMarkersOptions) => {
       try {
-        const client = buildClient(options);
+        const client = buildClient(options.apiKey);
         const page = computePageInfo(options);
         const range = resolveTimeRange(options.since, options.until, '24h');
         const markers = await fetchMarkers(client, options, range.start, range.end);

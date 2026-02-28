@@ -14,25 +14,8 @@ import {
 import { CLAWIQ_AGENT } from '../personas.js';
 import { discoverWorkspaces, removeClawiqTools, removeClawiqSkill } from '../workspace.js';
 import { handleError } from '../format.js';
-import * as readline from 'readline';
-
-function prompt(question: string): Promise<string> {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
-}
-
-function isYes(answer: string): boolean {
-  return answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes';
-}
+import { confirm } from '../cli.js';
+import { removeClawiqConfig } from '../openclaw_service.js';
 
 export function createUninstallCommand(): Command {
   const cmd = new Command('uninstall')
@@ -55,25 +38,24 @@ export function createUninstallCommand(): Command {
 
         if (!options.nonInteractive) {
           console.log(chalk.bold('\n🧹 ClawIQ Uninstall\n'));
-          const confirm = await prompt('Remove ClawIQ setup from this machine? (y/N): ');
-          if (!isYes(confirm)) {
+          const shouldRemove = await confirm('Remove ClawIQ setup from this machine? (y/N): ');
+          if (!shouldRemove) {
             console.log(chalk.dim('Uninstall cancelled.'));
             return;
           }
 
           if (hasPreClawiqBackup() && !options.skipBackupRestore) {
-            const restore = await prompt('Restore openclaw.pre-clawiq.json backup? (y/N): ');
-            restoreBackup = isYes(restore);
+            restoreBackup = await confirm('Restore openclaw.pre-clawiq.json backup? (y/N): ');
           } else {
-            const modify = await prompt('Remove ClawIQ changes from openclaw.json? (y/N): ');
-            keepOpenClaw = !isYes(modify);
+            const modify = await confirm('Remove ClawIQ changes from openclaw.json? (y/N): ');
+            keepOpenClaw = !modify;
           }
 
-          const deleteWorkspace = await prompt(`Delete ClawIQ workspace (${clawiqWorkspace})? (y/N): `);
-          keepWorkspace = !isYes(deleteWorkspace);
+          const deleteWorkspace = await confirm(`Delete ClawIQ workspace (${clawiqWorkspace})? (y/N): `);
+          keepWorkspace = !deleteWorkspace;
 
-          const deleteConfig = await prompt(`Delete ClawIQ config (${clawiqConfigDir})? (y/N): `);
-          keepConfig = !isYes(deleteConfig);
+          const deleteConfig = await confirm(`Delete ClawIQ config (${clawiqConfigDir})? (y/N): `);
+          keepConfig = !deleteConfig;
         } else {
           restoreBackup = hasPreClawiqBackup() && !options.skipBackupRestore;
         }
@@ -90,30 +72,7 @@ export function createUninstallCommand(): Command {
           } else {
             const openclawSpinner = ora('Removing ClawIQ settings from openclaw.json...').start();
             const openclawConfig = loadOpenClawConfig();
-
-            if (openclawConfig.diagnostics?.otel?.endpoint === API_ENDPOINT) {
-              if (openclawConfig.diagnostics?.otel?.headers?.Authorization?.startsWith('Bearer ')) {
-                delete openclawConfig.diagnostics.otel.headers.Authorization;
-              }
-              delete openclawConfig.diagnostics.otel.endpoint;
-              delete openclawConfig.diagnostics.otel.traces;
-              delete openclawConfig.diagnostics.otel.metrics;
-              delete openclawConfig.diagnostics.otel.logs;
-              delete openclawConfig.diagnostics.otel.enabled;
-            }
-
-            if (openclawConfig.plugins?.entries?.['diagnostics-otel']?.enabled) {
-              if (openclawConfig.diagnostics?.otel?.endpoint === undefined) {
-                openclawConfig.plugins.entries['diagnostics-otel'].enabled = false;
-              }
-            }
-
-            if (openclawConfig.agents?.list) {
-              openclawConfig.agents.list = openclawConfig.agents.list.filter(
-                (agent) => agent.id !== CLAWIQ_AGENT.id,
-              );
-            }
-
+            removeClawiqConfig(openclawConfig, API_ENDPOINT, CLAWIQ_AGENT.id);
             saveOpenClawConfig(openclawConfig);
             openclawSpinner.succeed('openclaw.json updated');
           }

@@ -5,24 +5,11 @@ import { execFile } from 'child_process';
 import { loadConfig, saveConfig, ClawIQConfig, API_ENDPOINT, CLI_VERSION } from '../config.js';
 import { ClawIQClient } from '../api.js';
 import { handleError } from '../format.js';
-import { loadOpenClawConfig, saveOpenClawConfig, backupOpenClawConfig, agentExists } from '../openclaw.js';
+import { loadOpenClawConfig, saveOpenClawConfig, backupOpenClawConfig } from '../openclaw.js';
 import { CLAWIQ_AGENT } from '../personas.js';
 import { createWorkspace, discoverWorkspaces, workspaceExists, appendClawiqTools, installClawiqSkill } from '../workspace.js';
-import * as readline from 'readline';
-
-function prompt(question: string): Promise<string> {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
-}
+import { prompt, confirm } from '../cli.js';
+import { configureOtelDiagnostics, ensureDiagnosticsPlugin, upsertAgent } from '../openclaw_service.js';
 
 export function createInitCommand(): Command {
   const cmd = new Command('init')
@@ -84,33 +71,10 @@ export function createInitCommand(): Command {
         // ── [3] Configure OTEL in openclaw.json ──────────────────
         const openclawConfig = loadOpenClawConfig();
 
-        if (!openclawConfig.diagnostics) {
-          openclawConfig.diagnostics = {};
-        }
-        if (!openclawConfig.diagnostics.otel) {
-          openclawConfig.diagnostics.otel = {};
-        }
-
-        openclawConfig.diagnostics.enabled = true;
-        openclawConfig.diagnostics.otel.enabled = true;
-        openclawConfig.diagnostics.otel.endpoint = API_ENDPOINT;
-        if (!openclawConfig.diagnostics.otel.headers) {
-          openclawConfig.diagnostics.otel.headers = {};
-        }
-        openclawConfig.diagnostics.otel.headers.Authorization = `Bearer ${apiKey}`;
-        openclawConfig.diagnostics.otel.traces = true;
-        openclawConfig.diagnostics.otel.metrics = true;
-        openclawConfig.diagnostics.otel.logs = true;
+        configureOtelDiagnostics(openclawConfig, apiKey, API_ENDPOINT);
 
         // ── [3b] Enable diagnostics-otel plugin ──────────────────
-        if (!openclawConfig.plugins) {
-          openclawConfig.plugins = {};
-        }
-        if (!openclawConfig.plugins.entries) {
-          openclawConfig.plugins.entries = {};
-        }
-        if (!openclawConfig.plugins.entries['diagnostics-otel']?.enabled) {
-          openclawConfig.plugins.entries['diagnostics-otel'] = { enabled: true };
+        if (ensureDiagnosticsPlugin(openclawConfig)) {
           console.log(chalk.green('\u2713') + ' diagnostics-otel plugin enabled');
         }
 
@@ -121,10 +85,10 @@ export function createInitCommand(): Command {
 
         if (workspaceExists(agentId)) {
           if (!options.nonInteractive) {
-            const overwrite = await prompt(
+            const overwrite = await confirm(
               chalk.yellow(`\nWorkspace for ${CLAWIQ_AGENT.name} already exists. Overwrite? (y/N): `)
             );
-            if (overwrite.toLowerCase() !== 'y') {
+            if (!overwrite) {
               console.log(chalk.dim('Keeping existing workspace'));
             } else {
               const wsSpinner = ora(`Creating ${CLAWIQ_AGENT.name} workspace...`).start();
@@ -139,25 +103,11 @@ export function createInitCommand(): Command {
         }
 
         // ── [5] Register agent in openclaw.json ──────────────────
-        if (!openclawConfig.agents) {
-          openclawConfig.agents = {};
-        }
-        if (!openclawConfig.agents.list) {
-          openclawConfig.agents.list = [];
-        }
-
         const workspacePath = `~/.openclaw/workspace-${agentId}`;
-        if (!agentExists(openclawConfig, agentId)) {
-          openclawConfig.agents.list.push({
-            id: agentId,
-            workspace: workspacePath,
-          });
+        const agentUpsert = upsertAgent(openclawConfig, agentId, workspacePath);
+        if (agentUpsert.added) {
           console.log(chalk.green('\u2713') + ` Creating Lex the Lobster and registering in openclaw.json`);
-        } else {
-          const existing = openclawConfig.agents.list.find((a) => a.id === agentId);
-          if (existing) {
-            existing.workspace = workspacePath;
-          }
+        } else if (agentUpsert.updated) {
           console.log(chalk.dim(`  Lex the Lobster already in openclaw.json (updated)`));
         }
 

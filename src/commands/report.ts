@@ -2,8 +2,8 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import Table from 'cli-table3';
 import ora from 'ora';
-import { ClawIQClient, Finding, FindingSeverity } from '../api.js';
-import { API_ENDPOINT, loadConfig, requireApiKey, CLI_VERSION } from '../config.js';
+import { Finding, FindingSeverity } from '../api.js';
+import { buildClient } from '../client.js';
 import { resolveTimeRange } from '../time.js';
 import { parseIntOption, handleError } from '../format.js';
 
@@ -34,12 +34,6 @@ function validateSeverity(value: string): FindingSeverity {
     );
   }
   return value as FindingSeverity;
-}
-
-function buildClient(apiKeyFlag?: string): ClawIQClient {
-  const config = loadConfig();
-  const apiKey = requireApiKey(config, apiKeyFlag);
-  return new ClawIQClient(API_ENDPOINT, apiKey, CLI_VERSION);
 }
 
 function formatSeverity(severity: FindingSeverity): string {

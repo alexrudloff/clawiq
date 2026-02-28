@@ -32,6 +32,7 @@ describe('resolveTimeRange', () => {
   });
 
   it('rejects since later than until', () => {
-    expect(() => resolveTimeRange('1h', '2h', '24h')).toThrow('`since` must be earlier than `until`');
+    expect(() => resolveTimeRange('2026-02-28T12:00:00.000Z', '2026-02-28T11:00:00.000Z', '24h'))
+      .toThrow('`since` must be earlier than `until`');
   });
 });

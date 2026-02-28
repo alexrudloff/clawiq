@@ -1,8 +1,9 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { loadConfig, requireApiKey, API_ENDPOINT, CLI_VERSION } from '../config.js';
-import { ClawIQClient, ClawIQEvent } from '../api.js';
+import { loadConfig } from '../config.js';
+import { ClawIQEvent } from '../api.js';
+import { buildClient } from '../client.js';
 import { handleError } from '../format.js';
 
 // Valid event types
@@ -129,8 +130,7 @@ export function createEmitCommand(): Command {
           throw new Error('Trace ID must be 32 hexadecimal characters');
         }
 
-        const apiKey = requireApiKey(config, options.apiKey);
-        const client = new ClawIQClient(API_ENDPOINT, apiKey, CLI_VERSION);
+        const client = buildClient(options.apiKey);
 
         const event: ClawIQEvent = {
           type,
