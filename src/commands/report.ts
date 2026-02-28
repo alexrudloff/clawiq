@@ -5,6 +5,7 @@ import ora from 'ora';
 import { Finding, FindingSeverity } from '../api.js';
 import { buildClient } from '../client.js';
 import { resolveTimeRange } from '../time.js';
+import { loadConfig } from '../config.js';
 import { parseIntOption, handleError } from '../format.js';
 
 // ── Constants ──────────────────────────────────────────────────────

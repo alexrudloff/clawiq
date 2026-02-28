@@ -10,6 +10,7 @@ const cli_table3_1 = __importDefault(require("cli-table3"));
 const ora_1 = __importDefault(require("ora"));
 const client_js_1 = require("../client.js");
 const time_js_1 = require("../time.js");
+const config_js_1 = require("../config.js");
 const format_js_1 = require("../format.js");
 // ── Constants ──────────────────────────────────────────────────────
 const FINDING_SEVERITIES = ['low', 'medium', 'high', 'critical'];
@@ -123,7 +124,7 @@ function buildFindingCommand() {
         try {
             const severity = validateSeverity(options.severity);
             const client = (0, client_js_1.buildClient)(options.apiKey);
-            const config = loadConfig();
+            const config = (0, config_js_1.loadConfig)();
             const reporter = options.reporter || config.defaultAgent || 'clawiq';
             // Validate field lengths
             const limits = {
