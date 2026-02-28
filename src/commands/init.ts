@@ -307,10 +307,7 @@ export function createInitCommand(): Command {
         console.log(`  ${chalk.dim('OTEL:')}       ${API_ENDPOINT}`);
         console.log(`  ${chalk.dim('API Key:')}    ${apiKey.slice(0, 15)}...`);
         console.log('');
-        console.log(chalk.dim('Try it out:'));
-        console.log(`  ${chalk.cyan('clawiq emit task hello-world --agent ' + agentId)}`);
-        console.log(`  ${chalk.cyan('clawiq pull all --since 1h')}`);
-        console.log('');
+        console.log(chalk.bold('\n🦞 Larry\'s ready. First review runs tonight at 3 AM. Claws out.\n'));
       } catch (error) {
         handleError(error);
       }
