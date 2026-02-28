@@ -1,7 +1,7 @@
 {
   "name": "clawiq",
-  "version": "0.1.0",
-  "description": "CLI for ClawIQ — analytics for AI agents",
+  "version": "0.2.0",
+  "description": "CLI for ClawIQ \u2014 analytics for AI agents",
   "repository": "https://github.com/alexrudloff/clawiq",
   "homepage": "https://clawiq.md",
   "main": "dist/index.js",
