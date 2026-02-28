@@ -205,6 +205,29 @@ export function createInitCommand(): Command {
           gwSpinner.warn('Could not restart gateway (restart manually with: openclaw gateway restart)');
         }
 
+        // Wait for gateway to be ready after restart
+        const readySpinner = ora('Waiting for gateway...').start();
+        let gatewayReady = false;
+        for (let i = 0; i < 15; i++) {
+          try {
+            await new Promise<void>((resolve, reject) => {
+              execFile('openclaw', ['gateway', 'status'], (error) => {
+                if (error) reject(error);
+                else resolve();
+              });
+            });
+            gatewayReady = true;
+            break;
+          } catch {
+            await new Promise(r => setTimeout(r, 2000));
+          }
+        }
+        if (gatewayReady) {
+          readySpinner.succeed('Gateway is ready');
+        } else {
+          readySpinner.warn('Gateway may not be ready — cron setup might fail');
+        }
+
         // ── [9] Create nightly performance review cron job ──────
         const cronSpinner = ora('Creating nightly performance review cron...').start();
         try {
