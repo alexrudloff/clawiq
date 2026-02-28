@@ -6,71 +6,63 @@ Agent intelligence for [OpenClaw](https://github.com/alexrudloff/openclaw). Unde
 
 ClawIQ is the monitoring layer for OpenClaw. It collects OTEL traces, semantic events, and error data from your agents, then surfaces insights through a web dashboard and CLI.
 
-When you run `clawiq init`, a monitoring agent is created in your OpenClaw workspace — a dedicated persona that watches over your system and reports on what it finds.
+When you run `clawiq init`, Lex the Lobster is created in your OpenClaw workspace — a dedicated agent that watches over your system, runs nightly performance reviews, and submits findings on what's working and what isn't.
 
 ## Installation
 
 ```bash
-npm install -g clawiq
+git clone https://github.com/alexrudloff/clawiq.git ~/.clawiq-cli
+cd ~/.clawiq-cli
+npm install
+npm link
 ```
 
-Requires Node.js 18+.
+Requires Node.js 22+.
 
 ## Setup
 
 ### 1. Get an API key
 
-Sign up at [clawiq.md](https://clawiq.md) and create an API key in **Settings > API Keys**.
+Sign up at [clawiq.md](https://clawiq.md) and click **Generate Command** on the getting started page.
 
 ### 2. Run the setup wizard
 
 ```bash
-clawiq init
+clawiq init --api-key YOUR_KEY
 ```
 
 The wizard will:
 - Validate your API key against the ClawIQ API
-- Let you choose a monitoring persona (Grip, Pinchy, or Clawfucius)
 - Configure OTEL telemetry in `~/.openclaw/openclaw.json`
-- Create an agent workspace at `~/.openclaw/workspace-{persona}/`
+- Create Lex's agent workspace at `~/.openclaw/workspace-clawiq/`
 - Register the agent in your OpenClaw config
 - Link the ClawIQ skill to existing workspaces
+- Schedule a nightly performance review cron job (3 AM daily)
 
 ### 3. Verify
 
-Send your OpenClaw agent a message, and then check to see if there's data flowing into clawiq.md
-
-If your OpenClaw instance is properly configured, you should see data flowing in under "Events," and "Insights" will soon appear!
-
-## Non-interactive setup
-
-Agents can set up clawiq themselves using:
-
-```bash
-clawiq init --api-key YOUR_KEY --persona grip --non-interactive
-```
-
-Valid personas: `grip`, `pinchy`, `clawfucius`.
-
-## Agent Personas
-
-Choose from the following agents to personalize your clawiq experience:
-
-| Persona | Style |
-|---------|-------|
-| Grip 🦀 | Senior SRE. Direct, analytical, numbers first. |
-| Pinchy 🦞 | Sharp + playful. Wry humor, colorful delivery. |
-| Clawfucius 🦐 | Wise sage. Context over reaction, patterns over noise. |
-
-Your agent will receive its own workspace with IDENTITY.md, SOUL.md, AGENTS.md, HEARTBEAT.md, TOOLS.md, and a ClawIQ-informed monitoring workflow.
+Send your OpenClaw agent a message, then check [clawiq.md](https://clawiq.md) to see data flowing in.
 
 ## How it works
 
 1. OpenClaw sends OTEL traces to ClawIQ via the diagnostics plugin
 2. Agents can optionally emit semantic events (`clawiq emit`) to annotate their work
-3. Your chosen agent (Grip, Pinchy, or Clawfucius) will examine your sessions nightly *on your local machine* and submit key learnings to your ClawIQ account
+3. Lex runs nightly reviews on your local machine — combining OTEL data with session transcripts to find behavioral patterns
+4. Findings are submitted to your ClawIQ account with specific patches to improve your agents
 
-The ClawIQ.md website will use this data to give insights on how to improve your agent team.
+## CLI Commands
+
+```bash
+clawiq init                          # Set up ClawIQ + Lex
+clawiq pull all --since 24h          # Unified timeline
+clawiq pull traces --since 24h       # OTEL traces
+clawiq pull errors --since 24h       # Error records
+clawiq pull semantic --since 24h     # Semantic events
+clawiq emit task <name>              # Emit a semantic event
+clawiq report finding --agent <id>   # Submit a finding
+clawiq report list --since 7d        # List recent findings
+clawiq tags                          # List all tags
+```
 
 ## Configuration
 
