@@ -11,7 +11,7 @@ exports.generateBootstrap = generateBootstrap;
 exports.generateMemory = generateMemory;
 exports.CLAWIQ_AGENT = {
     id: 'clawiq',
-    name: 'Lex',
+    name: 'Lenny',
     emoji: '\u{1F99E}',
 };
 // ── Template generators ──────────────────────────────────────────

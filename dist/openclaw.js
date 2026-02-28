@@ -3,6 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.OPENCLAW_CONFIG = exports.OPENCLAW_DIR = void 0;
 exports.loadOpenClawConfig = loadOpenClawConfig;
 exports.backupOpenClawConfig = backupOpenClawConfig;
+exports.hasPreClawiqBackup = hasPreClawiqBackup;
+exports.restorePreClawiqBackup = restorePreClawiqBackup;
 exports.saveOpenClawConfig = saveOpenClawConfig;
 exports.agentExists = agentExists;
 const fs_1 = require("fs");
@@ -28,6 +30,16 @@ function backupOpenClawConfig() {
         return true;
     }
     return false;
+}
+function hasPreClawiqBackup() {
+    return (0, fs_1.existsSync)(PRE_CLAWIQ_BACKUP);
+}
+function restorePreClawiqBackup() {
+    if (!(0, fs_1.existsSync)(PRE_CLAWIQ_BACKUP)) {
+        return false;
+    }
+    (0, fs_1.copyFileSync)(PRE_CLAWIQ_BACKUP, exports.OPENCLAW_CONFIG);
+    return true;
 }
 function saveOpenClawConfig(config) {
     if (!(0, fs_1.existsSync)(exports.OPENCLAW_DIR)) {

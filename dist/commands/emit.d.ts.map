@@ -1,1 +1,1 @@
-{"version":3,"file":"emit.d.ts","sourceRoot":"","sources":["../../src/commands/emit.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,OAAO,EAAE,MAAM,WAAW,CAAC;AAwEpC,wBAAgB,iBAAiB,IAAI,OAAO,CA4H3C"}
+{"version":3,"file":"emit.d.ts","sourceRoot":"","sources":["../../src/commands/emit.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,OAAO,EAAE,MAAM,WAAW,CAAC;AAyEpC,wBAAgB,iBAAiB,IAAI,OAAO,CA2H3C"}

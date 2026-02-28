@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.parseTimeValue = parseTimeValue;
 exports.resolveTimeRange = resolveTimeRange;
+exports.formatTimeAgo = formatTimeAgo;
 const RELATIVE_TIME_RE = /^(\d+)\s*([smhdw])$/i;
 function durationToMilliseconds(value, unit) {
     switch (unit.toLowerCase()) {
@@ -54,5 +55,17 @@ function resolveTimeRange(since, until, defaultSince) {
         start: startDate.toISOString(),
         end: endDate.toISOString(),
     };
+}
+function formatTimeAgo(date, now = new Date()) {
+    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    if (seconds < 60)
+        return 'just now';
+    if (seconds < 3600)
+        return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400)
+        return `${Math.floor(seconds / 3600)}h ago`;
+    if (seconds < 604800)
+        return `${Math.floor(seconds / 86400)}d ago`;
+    return date.toLocaleDateString();
 }
 //# sourceMappingURL=time.js.map

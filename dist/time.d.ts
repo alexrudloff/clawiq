@@ -3,4 +3,5 @@ export declare function resolveTimeRange(since: string | undefined, until: strin
     start: string;
     end: string;
 };
+export declare function formatTimeAgo(date: Date, now?: Date): string;
 //# sourceMappingURL=time.d.ts.map

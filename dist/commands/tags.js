@@ -7,22 +7,20 @@ exports.createTagsCommand = createTagsCommand;
 const commander_1 = require("commander");
 const chalk_1 = __importDefault(require("chalk"));
 const cli_table3_1 = __importDefault(require("cli-table3"));
-const config_js_1 = require("../config.js");
-const api_js_1 = require("../api.js");
+const client_js_1 = require("../client.js");
 const format_js_1 = require("../format.js");
+const time_js_1 = require("../time.js");
 function createTagsCommand() {
     const cmd = new commander_1.Command('tags')
         .description('List tags used in your events')
         .option('--api-key <key>', 'ClawIQ API key')
         .option('--since <duration>', 'Time range (e.g., 24h, 7d, 30d)', '7d')
-        .option('--limit <n>', 'Maximum tags per category', parseInt, 20)
+        .option('--limit <n>', 'Maximum tags per category', format_js_1.parseIntOption, 20)
         .option('--category <cat>', 'Filter by category: quality, action, domain')
         .option('--json', 'Output as JSON')
         .action(async (options) => {
-        const config = (0, config_js_1.loadConfig)();
         try {
-            const apiKey = (0, config_js_1.requireApiKey)(config, options.apiKey);
-            const client = new api_js_1.ClawIQClient(config_js_1.API_ENDPOINT, apiKey, config_js_1.CLI_VERSION);
+            const client = (0, client_js_1.buildClient)(options.apiKey);
             const tags = await client.getTags(options.since, options.limit);
             if (options.json) {
                 console.log(JSON.stringify(tags, null, 2));
@@ -42,7 +40,7 @@ function createTagsCommand() {
                 });
                 for (const tag of items) {
                     const lastUsed = new Date(tag.last_used);
-                    const timeAgo = formatTimeAgo(lastUsed);
+                    const timeAgo = (0, time_js_1.formatTimeAgo)(lastUsed);
                     table.push([tag.tag, tag.count.toString(), timeAgo]);
                 }
                 console.log(table.toString());
@@ -60,17 +58,5 @@ function createTagsCommand() {
         }
     });
     return cmd;
-}
-function formatTimeAgo(date) {
-    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-    if (seconds < 60)
-        return 'just now';
-    if (seconds < 3600)
-        return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 86400)
-        return `${Math.floor(seconds / 3600)}h ago`;
-    if (seconds < 604800)
-        return `${Math.floor(seconds / 86400)}d ago`;
-    return date.toLocaleDateString();
 }
 //# sourceMappingURL=tags.js.map

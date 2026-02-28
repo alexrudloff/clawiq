@@ -32,6 +32,8 @@ export interface OpenClawConfig {
 }
 export declare function loadOpenClawConfig(): OpenClawConfig;
 export declare function backupOpenClawConfig(): boolean;
+export declare function hasPreClawiqBackup(): boolean;
+export declare function restorePreClawiqBackup(): boolean;
 export declare function saveOpenClawConfig(config: OpenClawConfig): void;
 export declare function agentExists(config: OpenClawConfig, id: string): boolean;
 //# sourceMappingURL=openclaw.d.ts.map

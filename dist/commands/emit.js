@@ -8,7 +8,7 @@ const commander_1 = require("commander");
 const chalk_1 = __importDefault(require("chalk"));
 const ora_1 = __importDefault(require("ora"));
 const config_js_1 = require("../config.js");
-const api_js_1 = require("../api.js");
+const client_js_1 = require("../client.js");
 const format_js_1 = require("../format.js");
 // Valid event types
 const EVENT_TYPES = ['task', 'output', 'correction', 'error', 'feedback', 'health', 'note'];
@@ -117,8 +117,7 @@ function createEmitCommand() {
             if (options.trace && !/^[a-f0-9]{32}$/.test(options.trace)) {
                 throw new Error('Trace ID must be 32 hexadecimal characters');
             }
-            const apiKey = (0, config_js_1.requireApiKey)(config, options.apiKey);
-            const client = new api_js_1.ClawIQClient(config_js_1.API_ENDPOINT, apiKey, config_js_1.CLI_VERSION);
+            const client = (0, client_js_1.buildClient)(options.apiKey);
             const event = {
                 type,
                 name,

@@ -1,37 +1,4 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -47,19 +14,8 @@ const format_js_1 = require("../format.js");
 const openclaw_js_1 = require("../openclaw.js");
 const personas_js_1 = require("../personas.js");
 const workspace_js_1 = require("../workspace.js");
-const readline = __importStar(require("readline"));
-function prompt(question) {
-    const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout,
-    });
-    return new Promise((resolve) => {
-        rl.question(question, (answer) => {
-            rl.close();
-            resolve(answer.trim());
-        });
-    });
-}
+const cli_js_1 = require("../cli.js");
+const openclaw_service_js_1 = require("../openclaw_service.js");
 function createInitCommand() {
     const cmd = new commander_1.Command('init')
         .description('Set up ClawIQ agent, OTEL diagnostics, and agent workspaces')
@@ -82,7 +38,7 @@ function createInitCommand() {
             else {
                 const currentKey = config.apiKey ? `${config.apiKey.slice(0, 15)}...` : 'not set';
                 console.log(chalk_1.default.dim(`Current API key: ${currentKey}`));
-                const inputKey = options.apiKey || await prompt('API key (enter to keep current): ');
+                const inputKey = options.apiKey || await (0, cli_js_1.prompt)('API key (enter to keep current): ');
                 apiKey = inputKey || config.apiKey;
                 if (!apiKey) {
                     console.error(chalk_1.default.red('\nAPI key is required. Create one at https://clawiq.md/settings/api-keys'));
@@ -116,31 +72,9 @@ function createInitCommand() {
             }
             // ── [3] Configure OTEL in openclaw.json ──────────────────
             const openclawConfig = (0, openclaw_js_1.loadOpenClawConfig)();
-            if (!openclawConfig.diagnostics) {
-                openclawConfig.diagnostics = {};
-            }
-            if (!openclawConfig.diagnostics.otel) {
-                openclawConfig.diagnostics.otel = {};
-            }
-            openclawConfig.diagnostics.enabled = true;
-            openclawConfig.diagnostics.otel.enabled = true;
-            openclawConfig.diagnostics.otel.endpoint = config_js_1.API_ENDPOINT;
-            if (!openclawConfig.diagnostics.otel.headers) {
-                openclawConfig.diagnostics.otel.headers = {};
-            }
-            openclawConfig.diagnostics.otel.headers.Authorization = `Bearer ${apiKey}`;
-            openclawConfig.diagnostics.otel.traces = true;
-            openclawConfig.diagnostics.otel.metrics = true;
-            openclawConfig.diagnostics.otel.logs = true;
+            (0, openclaw_service_js_1.configureOtelDiagnostics)(openclawConfig, apiKey, config_js_1.API_ENDPOINT);
             // ── [3b] Enable diagnostics-otel plugin ──────────────────
-            if (!openclawConfig.plugins) {
-                openclawConfig.plugins = {};
-            }
-            if (!openclawConfig.plugins.entries) {
-                openclawConfig.plugins.entries = {};
-            }
-            if (!openclawConfig.plugins.entries['diagnostics-otel']?.enabled) {
-                openclawConfig.plugins.entries['diagnostics-otel'] = { enabled: true };
+            if ((0, openclaw_service_js_1.ensureDiagnosticsPlugin)(openclawConfig)) {
                 console.log(chalk_1.default.green('\u2713') + ' diagnostics-otel plugin enabled');
             }
             console.log(chalk_1.default.green('\u2713') + ' OTEL diagnostics configured');
@@ -148,8 +82,8 @@ function createInitCommand() {
             const agentId = personas_js_1.CLAWIQ_AGENT.id;
             if ((0, workspace_js_1.workspaceExists)(agentId)) {
                 if (!options.nonInteractive) {
-                    const overwrite = await prompt(chalk_1.default.yellow(`\nWorkspace for ${personas_js_1.CLAWIQ_AGENT.name} already exists. Overwrite? (y/N): `));
-                    if (overwrite.toLowerCase() !== 'y') {
+                    const overwrite = await (0, cli_js_1.confirm)(chalk_1.default.yellow(`\nWorkspace for ${personas_js_1.CLAWIQ_AGENT.name} already exists. Overwrite? (y/N): `));
+                    if (!overwrite) {
                         console.log(chalk_1.default.dim('Keeping existing workspace'));
                     }
                     else {
@@ -165,26 +99,13 @@ function createInitCommand() {
                 wsSpinner.succeed(`Workspace created: ~/.openclaw/workspace-${agentId}/`);
             }
             // ── [5] Register agent in openclaw.json ──────────────────
-            if (!openclawConfig.agents) {
-                openclawConfig.agents = {};
-            }
-            if (!openclawConfig.agents.list) {
-                openclawConfig.agents.list = [];
-            }
             const workspacePath = `~/.openclaw/workspace-${agentId}`;
-            if (!(0, openclaw_js_1.agentExists)(openclawConfig, agentId)) {
-                openclawConfig.agents.list.push({
-                    id: agentId,
-                    workspace: workspacePath,
-                });
-                console.log(chalk_1.default.green('\u2713') + ` Creating Lex the Lobster and registering in openclaw.json`);
+            const agentUpsert = (0, openclaw_service_js_1.upsertAgent)(openclawConfig, agentId, workspacePath);
+            if (agentUpsert.added) {
+                console.log(chalk_1.default.green('\u2713') + ` Creating Lenny the Lobster and registering in openclaw.json`);
             }
-            else {
-                const existing = openclawConfig.agents.list.find((a) => a.id === agentId);
-                if (existing) {
-                    existing.workspace = workspacePath;
-                }
-                console.log(chalk_1.default.dim(`  Lex the Lobster already in openclaw.json (updated)`));
+            else if (agentUpsert.updated) {
+                console.log(chalk_1.default.dim(`  Lenny the Lobster already in openclaw.json (updated)`));
             }
             (0, openclaw_js_1.saveOpenClawConfig)(openclawConfig);
             console.log(chalk_1.default.green('\u2713') + ' OpenClaw config saved');
@@ -308,7 +229,7 @@ function createInitCommand() {
             console.log(`  ${chalk_1.default.dim('OTEL:')}       ${config_js_1.API_ENDPOINT}`);
             console.log(`  ${chalk_1.default.dim('API Key:')}    ${apiKey.slice(0, 15)}...`);
             console.log('');
-            console.log(chalk_1.default.bold('\n🦞 Lex is ready. First review runs tonight at 3 AM. Claws out.\n'));
+            console.log(chalk_1.default.bold('\n🦞 Lenny is ready. First review runs tonight at 3 AM. Claws out.\n'));
         }
         catch (error) {
             (0, format_js_1.handleError)(error);

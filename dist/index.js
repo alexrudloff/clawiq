@@ -7,6 +7,7 @@ const tags_js_1 = require("./commands/tags.js");
 const init_js_1 = require("./commands/init.js");
 const pull_js_1 = require("./commands/pull.js");
 const report_js_1 = require("./commands/report.js");
+const uninstall_js_1 = require("./commands/uninstall.js");
 const config_js_1 = require("./config.js");
 const program = new commander_1.Command();
 program
@@ -18,5 +19,6 @@ program.addCommand((0, tags_js_1.createTagsCommand)());
 program.addCommand((0, init_js_1.createInitCommand)());
 program.addCommand((0, pull_js_1.createPullCommand)());
 program.addCommand((0, report_js_1.createReportCommand)());
+program.addCommand((0, uninstall_js_1.createUninstallCommand)());
 program.parse();
 //# sourceMappingURL=index.js.map

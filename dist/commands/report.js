@@ -8,8 +8,7 @@ const commander_1 = require("commander");
 const chalk_1 = __importDefault(require("chalk"));
 const cli_table3_1 = __importDefault(require("cli-table3"));
 const ora_1 = __importDefault(require("ora"));
-const api_js_1 = require("../api.js");
-const config_js_1 = require("../config.js");
+const client_js_1 = require("../client.js");
 const time_js_1 = require("../time.js");
 const format_js_1 = require("../format.js");
 // ── Constants ──────────────────────────────────────────────────────
@@ -32,11 +31,6 @@ function validateSeverity(value) {
         throw new Error(`Invalid severity "${value}". Must be one of: ${FINDING_SEVERITIES.join(', ')}`);
     }
     return value;
-}
-function buildClient(apiKeyFlag) {
-    const config = (0, config_js_1.loadConfig)();
-    const apiKey = (0, config_js_1.requireApiKey)(config, apiKeyFlag);
-    return new api_js_1.ClawIQClient(config_js_1.API_ENDPOINT, apiKey, config_js_1.CLI_VERSION);
 }
 function formatSeverity(severity) {
     const icon = SEVERITY_ICONS[severity] || '•';
@@ -128,8 +122,8 @@ function buildFindingCommand() {
         .action(async (options) => {
         try {
             const severity = validateSeverity(options.severity);
-            const client = buildClient(options.apiKey);
-            const config = (0, config_js_1.loadConfig)();
+            const client = (0, client_js_1.buildClient)(options.apiKey);
+            const config = loadConfig();
             const reporter = options.reporter || config.defaultAgent || 'clawiq';
             // Validate field lengths
             const limits = {
@@ -213,7 +207,7 @@ function buildListCommand() {
         .option('-q, --quiet', 'Suppress output (just exit code)')
         .action(async (options) => {
         try {
-            const client = buildClient(options.apiKey);
+            const client = (0, client_js_1.buildClient)(options.apiKey);
             const range = (0, time_js_1.resolveTimeRange)(options.since, options.until, '7d');
             const offset = options.offset ?? 0;
             const response = await client.getFindings({
@@ -274,7 +268,7 @@ function buildShowCommand() {
         .option('-q, --quiet', 'Suppress output')
         .action(async (findingId, options) => {
         try {
-            const client = buildClient(options.apiKey);
+            const client = (0, client_js_1.buildClient)(options.apiKey);
             // Search recent findings for the ID (or prefix match)
             const response = await client.getFindings({
                 since: '90d',

@@ -6,515 +6,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.createPullCommand = createPullCommand;
 const commander_1 = require("commander");
 const chalk_1 = __importDefault(require("chalk"));
-const cli_table3_1 = __importDefault(require("cli-table3"));
-const api_js_1 = require("../api.js");
-const config_js_1 = require("../config.js");
+const client_js_1 = require("../client.js");
 const time_js_1 = require("../time.js");
 const format_js_1 = require("../format.js");
-function validatePositiveInt(value, name) {
-    if (!Number.isInteger(value) || value <= 0) {
-        throw new Error(`--${name} must be a positive integer`);
-    }
-    return value;
-}
-function validateNonNegativeInt(value, name) {
-    if (!Number.isInteger(value) || value < 0) {
-        throw new Error(`--${name} must be a non-negative integer`);
-    }
-    return value;
-}
-function computePageInfo(options, defaultLimit = 50) {
-    const limit = validatePositiveInt(options.limit ?? defaultLimit, 'limit');
-    const offsetFromPage = options.page !== undefined
-        ? (validatePositiveInt(options.page, 'page') - 1) * limit
-        : 0;
-    const offset = validateNonNegativeInt(options.offset ?? offsetFromPage, 'offset');
-    return {
-        limit,
-        offset,
-        page: Math.floor(offset / limit) + 1,
-    };
-}
-function getAgentFromSession(sessionId) {
-    const parts = sessionId.split(':');
-    if (parts.length >= 2 && parts[0] === 'agent') {
-        return parts[1];
-    }
-    return sessionId || '-';
-}
-function matchesAgent(sessionId, agent) {
-    return sessionId.includes(`agent:${agent}:`);
-}
-function containsInsensitive(text, query) {
-    return text.toLowerCase().includes(query.toLowerCase());
-}
-function simplifyStatus(statusCode) {
-    if (statusCode === 'STATUS_CODE_ERROR') {
-        return 'error';
-    }
-    if (statusCode === 'STATUS_CODE_OK' || statusCode === 'STATUS_CODE_UNSET') {
-        return 'success';
-    }
-    return statusCode;
-}
-function printPaginationFooter(label, itemCount, page, total) {
-    if (total !== undefined) {
-        console.log(chalk_1.default.dim(`\nShowing ${itemCount} of ${total} ${label} (page ${page.page}, limit ${page.limit}, offset ${page.offset})`));
-        if (page.offset + itemCount < total) {
-            console.log(chalk_1.default.dim(`Next page: --offset ${page.offset + page.limit}`));
-        }
-        return;
-    }
-    console.log(chalk_1.default.dim(`\nShowing ${itemCount} ${label} (page ${page.page}, limit ${page.limit}, offset ${page.offset})`));
-    if (itemCount === page.limit) {
-        console.log(chalk_1.default.dim(`Next page: --offset ${page.offset + page.limit}`));
-    }
-}
-function printTracesCompact(items) {
-    for (const trace of items) {
-        const time = new Date(trace.start_time).toLocaleTimeString();
-        const status = simplifyStatus(trace.status);
-        const statusText = status === 'error' ? chalk_1.default.red(status) : chalk_1.default.green(status);
-        const model = trace.model || '-';
-        console.log(`${chalk_1.default.dim(time)} ${statusText} ${trace.trace_id} ${chalk_1.default.cyan(model)} ${chalk_1.default.dim(trace.channel || '-')}`);
-    }
-}
-function printTracesTable(items) {
-    const table = new cli_table3_1.default({
-        head: [
-            chalk_1.default.dim('Time'),
-            chalk_1.default.dim('Status'),
-            chalk_1.default.dim('Trace'),
-            chalk_1.default.dim('Agent'),
-            chalk_1.default.dim('Channel'),
-            chalk_1.default.dim('Model'),
-            chalk_1.default.dim('Tokens'),
-            chalk_1.default.dim('Duration'),
-        ],
-        style: { head: [], border: [] },
-    });
-    for (const trace of items) {
-        const status = simplifyStatus(trace.status);
-        const statusText = status === 'error' ? chalk_1.default.red(status) : chalk_1.default.green(status);
-        const agent = trace.agent_id || (trace.session_id ? getAgentFromSession(trace.session_id) : '-');
-        table.push([
-            chalk_1.default.dim(new Date(trace.start_time).toLocaleString()),
-            statusText,
-            trace.trace_id,
-            agent,
-            trace.channel || '-',
-            trace.model || '-',
-            `${trace.tokens_input + trace.tokens_output}`,
-            `${Math.round(trace.duration_ms)}ms`,
-        ]);
-    }
-    console.log(table.toString());
-}
-function printErrorsCompact(items) {
-    for (const error of items) {
-        const time = new Date(error.timestamp).toLocaleTimeString();
-        console.log(`${chalk_1.default.dim(time)} ${chalk_1.default.red(error.error_type)} ${error.trace_id} ${chalk_1.default.dim(error.channel || '-')}`);
-    }
-}
-function printErrorsTable(items) {
-    const table = new cli_table3_1.default({
-        head: [
-            chalk_1.default.dim('Time'),
-            chalk_1.default.dim('Type'),
-            chalk_1.default.dim('Trace'),
-            chalk_1.default.dim('Agent'),
-            chalk_1.default.dim('Channel'),
-            chalk_1.default.dim('Message'),
-        ],
-        style: { head: [], border: [] },
-        wordWrap: true,
-    });
-    for (const error of items) {
-        const agent = error.agent_id || (error.session_id ? getAgentFromSession(error.session_id) : '-');
-        table.push([
-            chalk_1.default.dim(new Date(error.timestamp).toLocaleString()),
-            chalk_1.default.red(error.error_type),
-            error.trace_id,
-            agent,
-            error.channel || '-',
-            error.message || '-',
-        ]);
-    }
-    console.log(table.toString());
-}
-function printSpanEventsCompact(items) {
-    for (const event of items) {
-        const time = new Date(event.start_time).toLocaleTimeString();
-        const status = simplifyStatus(event.status_code);
-        const statusText = status === 'error' ? chalk_1.default.red(status) : chalk_1.default.green(status);
-        const agent = event.agent_id || getAgentFromSession(event.session_id);
-        console.log(`${chalk_1.default.dim(time)} ${statusText} ${chalk_1.default.cyan(event.name)} ${chalk_1.default.dim(agent)} ${chalk_1.default.dim(event.channel || '-')}`);
-    }
-}
-function printSpanEventsTable(items) {
-    const table = new cli_table3_1.default({
-        head: [
-            chalk_1.default.dim('Time'),
-            chalk_1.default.dim('Status'),
-            chalk_1.default.dim('Name'),
-            chalk_1.default.dim('Agent'),
-            chalk_1.default.dim('Channel'),
-            chalk_1.default.dim('Model'),
-            chalk_1.default.dim('Outcome'),
-            chalk_1.default.dim('Duration'),
-        ],
-        style: { head: [], border: [] },
-        wordWrap: true,
-    });
-    for (const event of items) {
-        const status = simplifyStatus(event.status_code);
-        const statusText = status === 'error' ? chalk_1.default.red(status) : chalk_1.default.green(status);
-        const agent = event.agent_id || getAgentFromSession(event.session_id);
-        table.push([
-            chalk_1.default.dim(new Date(event.start_time).toLocaleString()),
-            statusText,
-            chalk_1.default.cyan(event.name),
-            agent,
-            event.channel || '-',
-            event.model || '-',
-            event.outcome || '-',
-            `${Math.round(event.duration_ms)}ms`,
-        ]);
-    }
-    console.log(table.toString());
-}
-function printSemanticCompact(items) {
-    for (const event of items) {
-        const icon = format_js_1.TYPE_ICONS[event.type] || '•';
-        const severity = event.severity === 'error'
-            ? chalk_1.default.red(event.severity)
-            : event.severity === 'warn'
-                ? chalk_1.default.yellow(event.severity)
-                : chalk_1.default.blue(event.severity);
-        const time = new Date(event.timestamp).toLocaleTimeString();
-        const agent = event.agent_id ? chalk_1.default.dim(` (${event.agent_id})`) : '';
-        console.log(`${chalk_1.default.dim(time)} ${icon} ${severity} ${chalk_1.default.cyan(event.name)}${agent}`);
-    }
-}
-function printSemanticTable(items) {
-    const table = new cli_table3_1.default({
-        head: [
-            chalk_1.default.dim('Time'),
-            chalk_1.default.dim('Type'),
-            chalk_1.default.dim('Name'),
-            chalk_1.default.dim('Severity'),
-            chalk_1.default.dim('Agent'),
-            chalk_1.default.dim('Channel'),
-        ],
-        style: { head: [], border: [] },
-        wordWrap: true,
-    });
-    for (const event of items) {
-        const icon = format_js_1.TYPE_ICONS[event.type] || '•';
-        const severity = event.severity === 'error'
-            ? chalk_1.default.red(event.severity)
-            : event.severity === 'warn'
-                ? chalk_1.default.yellow(event.severity)
-                : chalk_1.default.blue(event.severity);
-        table.push([
-            chalk_1.default.dim(new Date(event.timestamp).toLocaleString()),
-            `${icon} ${event.type}`,
-            chalk_1.default.cyan(event.name),
-            severity,
-            event.agent_id || '-',
-            event.channel || '-',
-        ]);
-    }
-    console.log(table.toString());
-}
-function printMarkersCompact(items) {
-    for (const marker of items) {
-        const time = new Date(marker.timestamp).toLocaleTimeString();
-        const severity = marker.severity === 'error'
-            ? chalk_1.default.red(marker.severity)
-            : marker.severity === 'warn'
-                ? chalk_1.default.yellow(marker.severity)
-                : chalk_1.default.blue(marker.severity);
-        console.log(`${chalk_1.default.dim(time)} ${severity} ${marker.type}:${chalk_1.default.cyan(marker.name)} x${marker.count}`);
-    }
-}
-function printMarkersTable(items) {
-    const table = new cli_table3_1.default({
-        head: [
-            chalk_1.default.dim('Time'),
-            chalk_1.default.dim('Type'),
-            chalk_1.default.dim('Name'),
-            chalk_1.default.dim('Severity'),
-            chalk_1.default.dim('Count'),
-        ],
-        style: { head: [], border: [] },
-    });
-    for (const marker of items) {
-        const severity = marker.severity === 'error'
-            ? chalk_1.default.red(marker.severity)
-            : marker.severity === 'warn'
-                ? chalk_1.default.yellow(marker.severity)
-                : chalk_1.default.blue(marker.severity);
-        table.push([
-            chalk_1.default.dim(new Date(marker.timestamp).toLocaleString()),
-            marker.type,
-            chalk_1.default.cyan(marker.name),
-            severity,
-            marker.count.toString(),
-        ]);
-    }
-    console.log(table.toString());
-}
-function kindLabel(kind) {
-    if (kind === 'error') {
-        return chalk_1.default.red('error');
-    }
-    if (kind === 'marker') {
-        return chalk_1.default.yellow('marker');
-    }
-    return chalk_1.default.blue('trace');
-}
-function printTimelineCompact(items) {
-    for (const item of items) {
-        const time = new Date(item.timestamp).toLocaleTimeString();
-        const channel = item.channel ? chalk_1.default.dim(item.channel) : chalk_1.default.dim('-');
-        console.log(`${chalk_1.default.dim(time)} ${kindLabel(item.kind)} ${item.summary} ${channel}`);
-    }
-}
-function printTimelineTable(items) {
-    const table = new cli_table3_1.default({
-        head: [
-            chalk_1.default.dim('Time'),
-            chalk_1.default.dim('Kind'),
-            chalk_1.default.dim('Summary'),
-            chalk_1.default.dim('Agent'),
-            chalk_1.default.dim('Channel'),
-            chalk_1.default.dim('Model'),
-            chalk_1.default.dim('Trace'),
-        ],
-        style: { head: [], border: [] },
-        wordWrap: true,
-    });
-    for (const item of items) {
-        table.push([
-            chalk_1.default.dim(new Date(item.timestamp).toLocaleString()),
-            kindLabel(item.kind),
-            item.summary,
-            item.agent || '-',
-            item.channel || '-',
-            item.model || '-',
-            item.trace_id || '-',
-        ]);
-    }
-    console.log(table.toString());
-}
-function buildClient(options) {
-    const config = (0, config_js_1.loadConfig)();
-    const apiKey = (0, config_js_1.requireApiKey)(config, options.apiKey);
-    return new api_js_1.ClawIQClient(config_js_1.API_ENDPOINT, apiKey, config_js_1.CLI_VERSION);
-}
-function toTraceRecord(event) {
-    return {
-        trace_id: event.trace_id,
-        start_time: event.start_time,
-        duration_ms: event.duration_ms,
-        channel: event.channel,
-        model: event.model,
-        session_id: event.session_id,
-        agent_id: event.agent_id || undefined,
-        tokens_input: event.tokens_input,
-        tokens_output: event.tokens_output,
-        status: event.status_code,
-        error: event.error_type || undefined,
-    };
-}
-function toErrorRecord(event) {
-    return {
-        timestamp: event.start_time,
-        trace_id: event.trace_id,
-        channel: event.channel,
-        error_type: event.error_type || 'unknown',
-        message: event.error_type || event.status_code,
-        session_id: event.session_id,
-        agent_id: event.agent_id || undefined,
-        model: event.model,
-    };
-}
-function bucket5m(iso) {
-    const date = new Date(iso);
-    date.setUTCSeconds(0, 0);
-    date.setUTCMinutes(date.getUTCMinutes() - (date.getUTCMinutes() % 5));
-    return date.toISOString();
-}
-async function fetchAllSemanticEvents(client, params) {
-    const batchSize = 500;
-    const maxEvents = 50_000;
-    const all = [];
-    let offset = 0;
-    while (all.length < maxEvents) {
-        const response = await client.getSemanticEvents({
-            ...params,
-            limit: batchSize,
-            offset,
-        });
-        all.push(...response.events);
-        if (response.events.length < batchSize) {
-            break;
-        }
-        offset += batchSize;
-    }
-    return all;
-}
-function buildMarkerRecords(events) {
-    const markerMap = new Map();
-    for (const event of events) {
-        const timestamp = bucket5m(event.timestamp);
-        const key = `${timestamp}|${event.type}|${event.name}|${event.severity}`;
-        const existing = markerMap.get(key);
-        if (existing) {
-            existing.count += 1;
-        }
-        else {
-            markerMap.set(key, {
-                timestamp,
-                type: event.type,
-                name: event.name,
-                severity: event.severity,
-                count: 1,
-            });
-        }
-    }
-    return [...markerMap.values()].sort((a, b) => {
-        if (a.timestamp === b.timestamp) {
-            return b.count - a.count;
-        }
-        return a.timestamp < b.timestamp ? 1 : -1;
-    });
-}
-async function fetchTraceRecords(client, options, start, end, limit, offset) {
-    const needsEventFallback = Boolean(options.agent) ||
-        Boolean(options.model) ||
-        Boolean(options.session) ||
-        Boolean(options.search) ||
-        options.status === 'success';
-    if (needsEventFallback) {
-        const serverSearch = options.agent ? `agent:${options.agent}:` : options.search;
-        const response = await client.getEvents({
-            since: start,
-            until: end,
-            channel: options.channel,
-            model: options.model,
-            status: options.status,
-            session: options.session,
-            search: serverSearch,
-            limit,
-            offset,
-        });
-        let events = response.events;
-        let total = response.total;
-        if (options.agent) {
-            events = events.filter((event) => matchesAgent(event.session_id, options.agent));
-            total = undefined;
-        }
-        if (options.agent && options.search) {
-            events = events.filter((event) => containsInsensitive(event.name, options.search) ||
-                containsInsensitive(event.model, options.search) ||
-                containsInsensitive(event.session_id, options.search));
-            total = undefined;
-        }
-        return {
-            traces: events.map(toTraceRecord),
-            total,
-        };
-    }
-    let traceStatus = options.status;
-    if (traceStatus === 'error') {
-        traceStatus = 'STATUS_CODE_ERROR';
-    }
-    const response = await client.getTraces({
-        since: start,
-        until: end,
-        channel: options.channel,
-        status: traceStatus,
-        limit,
-        offset,
-    });
-    // Current `/v1/traces` returns page length as total in OSS mode.
-    return {
-        traces: response.traces,
-    };
-}
-async function fetchErrorRecords(client, options, start, end, limit, offset) {
-    const needsEventFallback = Boolean(options.agent) ||
-        Boolean(options.model) ||
-        Boolean(options.session) ||
-        Boolean(options.search);
-    let errors;
-    let total;
-    if (needsEventFallback) {
-        const serverSearch = options.agent ? `agent:${options.agent}:` : options.search;
-        const response = await client.getEvents({
-            since: start,
-            until: end,
-            channel: options.channel,
-            model: options.model,
-            status: 'error',
-            session: options.session,
-            search: serverSearch,
-            limit,
-            offset,
-        });
-        let events = response.events;
-        total = response.total;
-        if (options.agent) {
-            events = events.filter((event) => matchesAgent(event.session_id, options.agent));
-            total = undefined;
-        }
-        if (options.agent && options.search) {
-            events = events.filter((event) => containsInsensitive(event.name, options.search) ||
-                containsInsensitive(event.model, options.search) ||
-                containsInsensitive(event.session_id, options.search));
-            total = undefined;
-        }
-        errors = events.map(toErrorRecord);
-    }
-    else {
-        const response = await client.getErrors({
-            since: start,
-            until: end,
-            channel: options.channel,
-            errorType: options.type,
-            traceId: options.trace,
-            limit,
-            offset,
-        });
-        errors = response.errors;
-        total = undefined;
-    }
-    if (options.type) {
-        errors = errors.filter((error) => error.error_type === options.type);
-        total = undefined;
-    }
-    if (options.trace) {
-        errors = errors.filter((error) => error.trace_id === options.trace);
-        total = undefined;
-    }
-    return { errors, total };
-}
-async function fetchMarkers(client, options, start, end) {
-    let events = await fetchAllSemanticEvents(client, {
-        since: start,
-        until: end,
-        source: options.source,
-        type: options.type,
-        severity: options.severity,
-        agent: options.agent,
-    });
-    if (options.name) {
-        events = events.filter((event) => containsInsensitive(event.name, options.name));
-    }
-    return buildMarkerRecords(events);
-}
+const pagination_js_1 = require("./pull/pagination.js");
+const filters_js_1 = require("./pull/filters.js");
+const formatters_js_1 = require("./pull/formatters.js");
+const fetch_js_1 = require("./pull/fetch.js");
 function buildAllCommand() {
     return new commander_1.Command('all')
         .description('Pull a unified timeline of traces, errors, and markers')
@@ -539,24 +37,24 @@ function buildAllCommand() {
         .option('--compact', 'Compact output')
         .action(async (options) => {
         try {
-            const client = buildClient(options);
-            const page = computePageInfo(options);
+            const client = (0, client_js_1.buildClient)(options.apiKey);
+            const page = (0, pagination_js_1.computePageInfo)(options);
             const range = (0, time_js_1.resolveTimeRange)(options.since, options.until, '24h');
             // Fetch enough rows from each source so merged pagination remains accurate.
             const mergeWindow = Math.max(page.limit + page.offset, page.limit);
             const [traceResult, errorResult, markers] = await Promise.all([
-                fetchTraceRecords(client, options, range.start, range.end, mergeWindow, 0),
-                fetchErrorRecords(client, options, range.start, range.end, mergeWindow, 0),
-                fetchMarkers(client, options, range.start, range.end),
+                (0, fetch_js_1.fetchTraceRecords)(client, options, range.start, range.end, mergeWindow, 0),
+                (0, fetch_js_1.fetchErrorRecords)(client, options, range.start, range.end, mergeWindow, 0),
+                (0, fetch_js_1.fetchMarkers)(client, options, range.start, range.end),
             ]);
             const traceItems = traceResult.traces.map((trace) => ({
                 kind: 'trace',
                 timestamp: trace.start_time,
-                summary: `${simplifyStatus(trace.status)} ${trace.model || '-'} ${Math.round(trace.duration_ms)}ms`,
+                summary: `${(0, filters_js_1.simplifyStatus)(trace.status)} ${trace.model || '-'} ${Math.round(trace.duration_ms)}ms`,
                 trace_id: trace.trace_id,
                 channel: trace.channel,
                 model: trace.model,
-                agent: trace.agent_id || (trace.session_id ? getAgentFromSession(trace.session_id) : undefined),
+                agent: trace.agent_id || (trace.session_id ? (0, filters_js_1.getAgentFromSession)(trace.session_id) : undefined),
             }));
             const errorItems = errorResult.errors.map((error) => ({
                 kind: 'error',
@@ -565,7 +63,7 @@ function buildAllCommand() {
                 trace_id: error.trace_id,
                 channel: error.channel,
                 model: error.model,
-                agent: error.agent_id || (error.session_id ? getAgentFromSession(error.session_id) : undefined),
+                agent: error.agent_id || (error.session_id ? (0, filters_js_1.getAgentFromSession)(error.session_id) : undefined),
                 severity: 'error',
             }));
             const markerItems = markers.map((marker) => ({
@@ -601,12 +99,12 @@ function buildAllCommand() {
                 return;
             }
             if (options.compact) {
-                printTimelineCompact(pageItems);
+                (0, formatters_js_1.printTimelineCompact)(pageItems);
             }
             else {
-                printTimelineTable(pageItems);
+                (0, formatters_js_1.printTimelineTable)(pageItems);
             }
-            printPaginationFooter('timeline items', pageItems.length, page, total);
+            (0, pagination_js_1.printPaginationFooter)('timeline items', pageItems.length, page, total);
             if (total === undefined && hasMore && pageItems.length < page.limit) {
                 console.log(chalk_1.default.dim(`Next page: --offset ${page.offset + page.limit}`));
             }
@@ -635,8 +133,8 @@ function buildEventsCommand() {
         .option('--compact', 'Compact output')
         .action(async (options) => {
         try {
-            const client = buildClient(options);
-            const page = computePageInfo(options);
+            const client = (0, client_js_1.buildClient)(options.apiKey);
+            const page = (0, pagination_js_1.computePageInfo)(options);
             const range = (0, time_js_1.resolveTimeRange)(options.since, options.until, '24h');
             const serverSearch = options.agent ? `agent:${options.agent}:` : options.search;
             const result = await client.getEvents({
@@ -653,13 +151,13 @@ function buildEventsCommand() {
             let events = result.events ?? [];
             let total = result.total;
             if (options.agent) {
-                events = events.filter((event) => matchesAgent(event.session_id, options.agent));
+                events = events.filter((event) => (0, filters_js_1.matchesAgent)(event.session_id, options.agent));
                 total = undefined;
             }
             if (options.agent && options.search) {
-                events = events.filter((event) => containsInsensitive(event.name, options.search) ||
-                    containsInsensitive(event.model, options.search) ||
-                    containsInsensitive(event.session_id, options.search));
+                events = events.filter((event) => (0, filters_js_1.containsInsensitive)(event.name, options.search) ||
+                    (0, filters_js_1.containsInsensitive)(event.model, options.search) ||
+                    (0, filters_js_1.containsInsensitive)(event.session_id, options.search));
                 total = undefined;
             }
             if (options.json) {
@@ -677,12 +175,12 @@ function buildEventsCommand() {
                 return;
             }
             if (options.compact) {
-                printSpanEventsCompact(events);
+                (0, formatters_js_1.printSpanEventsCompact)(events);
             }
             else {
-                printSpanEventsTable(events);
+                (0, formatters_js_1.printSpanEventsTable)(events);
             }
-            printPaginationFooter('events', events.length, page, total);
+            (0, pagination_js_1.printPaginationFooter)('events', events.length, page, total);
         }
         catch (error) {
             (0, format_js_1.handleError)(error);
@@ -707,8 +205,8 @@ function buildSemanticCommand() {
         .option('--compact', 'Compact output')
         .action(async (options) => {
         try {
-            const client = buildClient(options);
-            const page = computePageInfo(options);
+            const client = (0, client_js_1.buildClient)(options.apiKey);
+            const page = (0, pagination_js_1.computePageInfo)(options);
             const range = (0, time_js_1.resolveTimeRange)(options.since, options.until, '24h');
             const response = await client.getSemanticEvents({
                 since: range.start,
@@ -723,7 +221,7 @@ function buildSemanticCommand() {
             let events = response.events;
             let total = response.total;
             if (options.name) {
-                events = events.filter((event) => containsInsensitive(event.name, options.name));
+                events = events.filter((event) => (0, filters_js_1.containsInsensitive)(event.name, options.name));
                 total = undefined;
             }
             if (options.json) {
@@ -741,12 +239,12 @@ function buildSemanticCommand() {
                 return;
             }
             if (options.compact) {
-                printSemanticCompact(events);
+                (0, formatters_js_1.printSemanticCompact)(events);
             }
             else {
-                printSemanticTable(events);
+                (0, formatters_js_1.printSemanticTable)(events);
             }
-            printPaginationFooter('semantic events', events.length, page, total);
+            (0, pagination_js_1.printPaginationFooter)('semantic events', events.length, page, total);
         }
         catch (error) {
             (0, format_js_1.handleError)(error);
@@ -772,10 +270,10 @@ function buildTracesCommand() {
         .option('--compact', 'Compact output')
         .action(async (options) => {
         try {
-            const client = buildClient(options);
-            const page = computePageInfo(options);
+            const client = (0, client_js_1.buildClient)(options.apiKey);
+            const page = (0, pagination_js_1.computePageInfo)(options);
             const range = (0, time_js_1.resolveTimeRange)(options.since, options.until, '24h');
-            const result = await fetchTraceRecords(client, options, range.start, range.end, page.limit, page.offset);
+            const result = await (0, fetch_js_1.fetchTraceRecords)(client, options, range.start, range.end, page.limit, page.offset);
             const traces = result.traces ?? [];
             const total = result.total ?? 0;
             if (options.json) {
@@ -793,12 +291,12 @@ function buildTracesCommand() {
                 return;
             }
             if (options.compact) {
-                printTracesCompact(traces);
+                (0, formatters_js_1.printTracesCompact)(traces);
             }
             else {
-                printTracesTable(traces);
+                (0, formatters_js_1.printTracesTable)(traces);
             }
-            printPaginationFooter('traces', traces.length, page, total);
+            (0, pagination_js_1.printPaginationFooter)('traces', traces.length, page, total);
         }
         catch (error) {
             (0, format_js_1.handleError)(error);
@@ -825,10 +323,10 @@ function buildErrorsCommand() {
         .option('--compact', 'Compact output')
         .action(async (options) => {
         try {
-            const client = buildClient(options);
-            const page = computePageInfo(options);
+            const client = (0, client_js_1.buildClient)(options.apiKey);
+            const page = (0, pagination_js_1.computePageInfo)(options);
             const range = (0, time_js_1.resolveTimeRange)(options.since, options.until, '24h');
-            const result = await fetchErrorRecords(client, options, range.start, range.end, page.limit, page.offset);
+            const result = await (0, fetch_js_1.fetchErrorRecords)(client, options, range.start, range.end, page.limit, page.offset);
             const errors = result.errors ?? [];
             const total = result.total ?? 0;
             if (options.json) {
@@ -846,12 +344,12 @@ function buildErrorsCommand() {
                 return;
             }
             if (options.compact) {
-                printErrorsCompact(errors);
+                (0, formatters_js_1.printErrorsCompact)(errors);
             }
             else {
-                printErrorsTable(errors);
+                (0, formatters_js_1.printErrorsTable)(errors);
             }
-            printPaginationFooter('errors', errors.length, page, total);
+            (0, pagination_js_1.printPaginationFooter)('errors', errors.length, page, total);
         }
         catch (error) {
             (0, format_js_1.handleError)(error);
@@ -876,10 +374,10 @@ function buildMarkersCommand() {
         .option('--compact', 'Compact output')
         .action(async (options) => {
         try {
-            const client = buildClient(options);
-            const page = computePageInfo(options);
+            const client = (0, client_js_1.buildClient)(options.apiKey);
+            const page = (0, pagination_js_1.computePageInfo)(options);
             const range = (0, time_js_1.resolveTimeRange)(options.since, options.until, '24h');
-            const markers = await fetchMarkers(client, options, range.start, range.end);
+            const markers = await (0, fetch_js_1.fetchMarkers)(client, options, range.start, range.end);
             const total = markers.length;
             const pageItems = markers.slice(page.offset, page.offset + page.limit);
             if (options.json) {
@@ -897,12 +395,12 @@ function buildMarkersCommand() {
                 return;
             }
             if (options.compact) {
-                printMarkersCompact(pageItems);
+                (0, formatters_js_1.printMarkersCompact)(pageItems);
             }
             else {
-                printMarkersTable(pageItems);
+                (0, formatters_js_1.printMarkersTable)(pageItems);
             }
-            printPaginationFooter('markers', pageItems.length, page, total);
+            (0, pagination_js_1.printPaginationFooter)('markers', pageItems.length, page, total);
         }
         catch (error) {
             (0, format_js_1.handleError)(error);

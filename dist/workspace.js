@@ -5,6 +5,8 @@ exports.discoverWorkspaces = discoverWorkspaces;
 exports.workspaceExists = workspaceExists;
 exports.installClawiqSkill = installClawiqSkill;
 exports.appendClawiqTools = appendClawiqTools;
+exports.removeClawiqTools = removeClawiqTools;
+exports.removeClawiqSkill = removeClawiqSkill;
 const fs_1 = require("fs");
 const path_1 = require("path");
 const openclaw_js_1 = require("./openclaw.js");
@@ -54,6 +56,7 @@ function workspaceExists(agentId) {
     return (0, fs_1.existsSync)((0, path_1.join)(openclaw_js_1.OPENCLAW_DIR, `workspace-${agentId}`));
 }
 const CLAWIQ_TOOLS_MARKER = '<!-- clawiq-tools -->';
+const CLAWIQ_TOOLS_END_MARKER = '<!-- /clawiq-tools -->';
 const CLAWIQ_TOOLS_SECTION = `
 ${CLAWIQ_TOOLS_MARKER}
 ## ClawIQ CLI
@@ -92,6 +95,7 @@ clawiq report show <finding-id>    # show finding details
 \`\`\`
 
 Common flags: \`--agent <id>\`, \`--severity <level>\`, \`--json\`, \`-q\` (quiet)
+${CLAWIQ_TOOLS_END_MARKER}
 `;
 const SHARED_SKILLS_DIR = (0, path_1.join)(openclaw_js_1.OPENCLAW_DIR, 'workspace', 'skills');
 const CLAWIQ_SKILL = `---
@@ -230,6 +234,43 @@ function appendClawiqTools(workspacePath) {
         return false;
     }
     (0, fs_1.writeFileSync)(toolsPath, existing.trimEnd() + '\n' + CLAWIQ_TOOLS_SECTION);
+    return true;
+}
+/**
+ * Remove ClawIQ CLI reference from a workspace's TOOLS.md.
+ * Returns true if the file was updated, false if no change.
+ */
+function removeClawiqTools(workspacePath) {
+    const toolsPath = (0, path_1.join)(workspacePath, 'TOOLS.md');
+    if (!(0, fs_1.existsSync)(toolsPath)) {
+        return false;
+    }
+    const existing = (0, fs_1.readFileSync)(toolsPath, 'utf-8');
+    const markerIndex = existing.indexOf(CLAWIQ_TOOLS_MARKER);
+    if (markerIndex === -1) {
+        return false;
+    }
+    const endIndex = existing.indexOf(CLAWIQ_TOOLS_END_MARKER, markerIndex);
+    if (endIndex !== -1) {
+        const after = endIndex + CLAWIQ_TOOLS_END_MARKER.length;
+        const updated = (existing.slice(0, markerIndex) + existing.slice(after)).trimEnd();
+        (0, fs_1.writeFileSync)(toolsPath, updated.length ? updated + '\n' : '');
+        return true;
+    }
+    const updated = existing.slice(0, markerIndex).trimEnd();
+    (0, fs_1.writeFileSync)(toolsPath, updated.length ? updated + '\n' : '');
+    return true;
+}
+/**
+ * Remove the shared clawiq skill directory if present.
+ * Returns true if removed, false if not found.
+ */
+function removeClawiqSkill() {
+    const skillDir = (0, path_1.join)(SHARED_SKILLS_DIR, 'clawiq');
+    if (!(0, fs_1.existsSync)(skillDir)) {
+        return false;
+    }
+    (0, fs_1.rmSync)(skillDir, { recursive: true, force: true });
     return true;
 }
 //# sourceMappingURL=workspace.js.map

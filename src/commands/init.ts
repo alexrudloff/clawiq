@@ -106,9 +106,9 @@ export function createInitCommand(): Command {
         const workspacePath = `~/.openclaw/workspace-${agentId}`;
         const agentUpsert = upsertAgent(openclawConfig, agentId, workspacePath);
         if (agentUpsert.added) {
-          console.log(chalk.green('\u2713') + ` Creating Lex the Lobster and registering in openclaw.json`);
+          console.log(chalk.green('\u2713') + ` Creating Lenny the Lobster and registering in openclaw.json`);
         } else if (agentUpsert.updated) {
-          console.log(chalk.dim(`  Lex the Lobster already in openclaw.json (updated)`));
+          console.log(chalk.dim(`  Lenny the Lobster already in openclaw.json (updated)`));
         }
 
         saveOpenClawConfig(openclawConfig);
@@ -230,7 +230,7 @@ export function createInitCommand(): Command {
         console.log(`  ${chalk.dim('OTEL:')}       ${API_ENDPOINT}`);
         console.log(`  ${chalk.dim('API Key:')}    ${apiKey.slice(0, 15)}...`);
         console.log('');
-        console.log(chalk.bold('\n🦞 Lex is ready. First review runs tonight at 3 AM. Claws out.\n'));
+        console.log(chalk.bold('\n🦞 Lenny is ready. First review runs tonight at 3 AM. Claws out.\n'));
       } catch (error) {
         handleError(error);
       }
