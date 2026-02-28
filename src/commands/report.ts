@@ -148,6 +148,21 @@ function buildFindingCommand(): Command {
 
         const reporter = options.reporter || config.defaultAgent || 'clawiq';
 
+        // Validate field lengths
+        const limits: Record<string, number> = {
+          title: 200,
+          description: 1000,
+          patch: 2000,
+          evidence: 1000,
+        };
+        for (const [field, max] of Object.entries(limits)) {
+          const val = options[field] as string | undefined;
+          if (val && val.length > max) {
+            console.error(chalk.red(`Error: --${field} exceeds ${max} character limit (got ${val.length}). One finding per report — keep it focused.`));
+            process.exit(1);
+          }
+        }
+
         const spinner = options.quiet ? null : ora('Submitting finding...').start();
 
         const result = await client.submitFinding({
