@@ -24,6 +24,9 @@ export interface OpenClawConfig {
       logs?: boolean;
     };
   };
+  plugins?: {
+    entries?: Record<string, { enabled?: boolean }>;
+  };
   agents?: {
     defaults?: Record<string, unknown>;
     list?: OpenClawAgent[];

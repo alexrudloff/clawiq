@@ -271,13 +271,6 @@ export class ClawIQClient {
     return this.request<TagsResponse>('GET', `/v1/tags${query ? `?${query}` : ''}`);
   }
 
-  /**
-   * Query semantic events (CLI-generated events)
-   */
-  async query(params: QueryParams): Promise<QueryResponse> {
-    return this.getSemanticEvents(params);
-  }
-
   async getSemanticEvents(params: QueryParams): Promise<QueryResponse> {
     const searchParams = new URLSearchParams();
     if (params.since) searchParams.set('start', params.since);

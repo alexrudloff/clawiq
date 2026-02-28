@@ -1,8 +1,9 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { loadConfig, requireApiKey, getEndpoint } from '../config.js';
+import { loadConfig, requireApiKey, API_ENDPOINT } from '../config.js';
 import { ClawIQClient, ClawIQEvent } from '../api.js';
+import { handleError } from '../format.js';
 
 // Valid event types
 const EVENT_TYPES = ['task', 'output', 'correction', 'error', 'feedback', 'health', 'note'];
@@ -75,7 +76,6 @@ export function createEmitCommand(): Command {
     .argument('<type>', `Event type: ${EVENT_TYPES.join(', ')}`)
     .argument('<name>', 'Event name (kebab-case, e.g., "dinner-poll")')
     .option('--api-key <key>', 'ClawIQ API key')
-    .option('--endpoint <url>', 'ClawIQ endpoint')
     .option('--agent <id>', 'Agent ID')
     .option('--source <source>', `Event source: ${SOURCES.join(', ')}`, 'agent')
     .option('--severity <level>', `Severity: ${SEVERITIES.join(', ')}`, 'info')
@@ -130,8 +130,7 @@ export function createEmitCommand(): Command {
         }
 
         const apiKey = requireApiKey(config, options.apiKey);
-        const endpoint = getEndpoint(config, options.endpoint);
-        const client = new ClawIQClient(endpoint, apiKey);
+        const client = new ClawIQClient(API_ENDPOINT, apiKey);
 
         const event: ClawIQEvent = {
           type,
@@ -189,10 +188,8 @@ export function createEmitCommand(): Command {
           }
         }
       } catch (error) {
-        if (!options.quiet) {
-          console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
-        }
-        process.exit(1);
+        if (options.quiet) process.exit(1);
+        handleError(error);
       }
     });
 

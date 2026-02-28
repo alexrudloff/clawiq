@@ -1,4 +1,4 @@
-import { Command, InvalidArgumentError } from 'commander';
+import { Command } from 'commander';
 import chalk from 'chalk';
 import Table from 'cli-table3';
 import {
@@ -10,12 +10,12 @@ import {
   SpanEvent,
   TraceRecord,
 } from '../api.js';
-import { getApiEndpoint, loadConfig, requireApiKey } from '../config.js';
+import { API_ENDPOINT, loadConfig, requireApiKey } from '../config.js';
 import { resolveTimeRange } from '../time.js';
+import { TYPE_ICONS, parseIntOption, handleError } from '../format.js';
 
 interface CommonPullOptions {
   apiKey?: string;
-  endpoint?: string;
   since?: string;
   until?: string;
   limit?: number;
@@ -108,26 +108,6 @@ interface TimelineItem {
   model?: string;
   agent?: string;
   severity?: string;
-}
-
-const TYPE_ICONS: Record<string, string> = {
-  task: '●',
-  delivery: '→',
-  decision: '◆',
-  correction: '↩',
-  error: '✗',
-  coordination: '⇄',
-  feedback: '◀',
-  health: '♥',
-  note: '✎',
-};
-
-function parseIntOption(value: string): number {
-  const parsed = Number.parseInt(value, 10);
-  if (Number.isNaN(parsed)) {
-    throw new InvalidArgumentError('must be an integer');
-  }
-  return parsed;
 }
 
 function validatePositiveInt(value: number, name: string): number {
@@ -490,8 +470,7 @@ function printTimelineTable(items: TimelineItem[]): void {
 function buildClient(options: CommonPullOptions): ClawIQClient {
   const config = loadConfig();
   const apiKey = requireApiKey(config, options.apiKey);
-  const endpoint = getApiEndpoint(config, options.endpoint);
-  return new ClawIQClient(endpoint, apiKey);
+  return new ClawIQClient(API_ENDPOINT, apiKey);
 }
 
 function toTraceRecord(event: SpanEvent): TraceRecord {
@@ -751,7 +730,7 @@ function buildAllCommand(): Command {
   return new Command('all')
     .description('Pull a unified timeline of traces, errors, and markers')
     .option('--api-key <key>', 'ClawIQ API key')
-    .option('--endpoint <url>', 'ClawIQ API endpoint')
+
     .option('--since <time>', 'Start time (relative like 24h, or ISO)', '24h')
     .option('--until <time>', 'End time (relative or ISO)')
     .option('--channel <channel>', 'Filter by channel')
@@ -863,8 +842,7 @@ function buildAllCommand(): Command {
           console.log(chalk.dim(`Next page: --offset ${page.offset + page.limit}`));
         }
       } catch (error) {
-        console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
-        process.exit(1);
+        handleError(error);
       }
     });
 }
@@ -873,7 +851,7 @@ function buildEventsCommand(): Command {
   return new Command('events')
     .description('Pull span events from ClawIQ')
     .option('--api-key <key>', 'ClawIQ API key')
-    .option('--endpoint <url>', 'ClawIQ API endpoint')
+
     .option('--since <time>', 'Start time (relative like 24h, or ISO)', '24h')
     .option('--until <time>', 'End time (relative or ISO)')
     .option('--channel <channel>', 'Filter by channel')
@@ -953,8 +931,7 @@ function buildEventsCommand(): Command {
 
         printPaginationFooter('events', events.length, page, total);
       } catch (error) {
-        console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
-        process.exit(1);
+        handleError(error);
       }
     });
 }
@@ -963,7 +940,7 @@ function buildSemanticCommand(): Command {
   return new Command('semantic')
     .description('Pull semantic events from ClawIQ')
     .option('--api-key <key>', 'ClawIQ API key')
-    .option('--endpoint <url>', 'ClawIQ API endpoint')
+
     .option('--since <time>', 'Start time (relative like 24h, or ISO)', '24h')
     .option('--until <time>', 'End time (relative or ISO)')
     .option('--source <source>', 'Filter by source')
@@ -1030,8 +1007,7 @@ function buildSemanticCommand(): Command {
 
         printPaginationFooter('semantic events', events.length, page, total);
       } catch (error) {
-        console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
-        process.exit(1);
+        handleError(error);
       }
     });
 }
@@ -1040,7 +1016,7 @@ function buildTracesCommand(): Command {
   return new Command('traces')
     .description('Pull traces from ClawIQ')
     .option('--api-key <key>', 'ClawIQ API key')
-    .option('--endpoint <url>', 'ClawIQ API endpoint')
+
     .option('--since <time>', 'Start time (relative like 24h, or ISO)', '24h')
     .option('--until <time>', 'End time (relative or ISO)')
     .option('--channel <channel>', 'Filter by channel')
@@ -1100,8 +1076,7 @@ function buildTracesCommand(): Command {
 
         printPaginationFooter('traces', traces.length, page, total);
       } catch (error) {
-        console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
-        process.exit(1);
+        handleError(error);
       }
     });
 }
@@ -1110,7 +1085,7 @@ function buildErrorsCommand(): Command {
   return new Command('errors')
     .description('Pull error records from ClawIQ')
     .option('--api-key <key>', 'ClawIQ API key')
-    .option('--endpoint <url>', 'ClawIQ API endpoint')
+
     .option('--since <time>', 'Start time (relative like 24h, or ISO)', '24h')
     .option('--until <time>', 'End time (relative or ISO)')
     .option('--channel <channel>', 'Filter by channel')
@@ -1171,8 +1146,7 @@ function buildErrorsCommand(): Command {
 
         printPaginationFooter('errors', errors.length, page, total);
       } catch (error) {
-        console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
-        process.exit(1);
+        handleError(error);
       }
     });
 }
@@ -1181,7 +1155,7 @@ function buildMarkersCommand(): Command {
   return new Command('markers')
     .description('Pull semantic event markers (aggregated in 5m buckets)')
     .option('--api-key <key>', 'ClawIQ API key')
-    .option('--endpoint <url>', 'ClawIQ API endpoint')
+
     .option('--since <time>', 'Start time (relative like 24h, or ISO)', '24h')
     .option('--until <time>', 'End time (relative or ISO)')
     .option('--source <source>', 'Filter by source')
@@ -1234,8 +1208,7 @@ function buildMarkersCommand(): Command {
 
         printPaginationFooter('markers', pageItems.length, page, total);
       } catch (error) {
-        console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
-        process.exit(1);
+        handleError(error);
       }
     });
 }

@@ -1,14 +1,14 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import Table from 'cli-table3';
-import { loadConfig, requireApiKey, getApiEndpoint } from '../config.js';
+import { loadConfig, requireApiKey, API_ENDPOINT } from '../config.js';
 import { ClawIQClient } from '../api.js';
+import { handleError } from '../format.js';
 
 export function createTagsCommand(): Command {
   const cmd = new Command('tags')
     .description('List tags used in your events')
     .option('--api-key <key>', 'ClawIQ API key')
-    .option('--endpoint <url>', 'ClawIQ endpoint')
     .option('--since <duration>', 'Time range (e.g., 24h, 7d, 30d)', '7d')
     .option('--limit <n>', 'Maximum tags per category', parseInt, 20)
     .option('--category <cat>', 'Filter by category: quality, action, domain')
@@ -18,8 +18,7 @@ export function createTagsCommand(): Command {
 
       try {
         const apiKey = requireApiKey(config, options.apiKey);
-        const endpoint = getApiEndpoint(config, options.endpoint);
-        const client = new ClawIQClient(endpoint, apiKey);
+        const client = new ClawIQClient(API_ENDPOINT, apiKey);
 
         const tags = await client.getTags(options.since, options.limit);
 
@@ -61,8 +60,7 @@ export function createTagsCommand(): Command {
           console.log(chalk.dim(`\n${total} unique tags found`));
         }
       } catch (error) {
-        console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
-        process.exit(1);
+        handleError(error);
       }
     });
 

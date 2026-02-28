@@ -3,7 +3,7 @@
 import { Command } from 'commander';
 import { createEmitCommand } from './commands/emit.js';
 import { createTagsCommand } from './commands/tags.js';
-import { createQueryCommand } from './commands/query.js';
+
 import { createInitCommand } from './commands/init.js';
 import { createPullCommand } from './commands/pull.js';
 
@@ -16,7 +16,7 @@ program
 
 program.addCommand(createEmitCommand());
 program.addCommand(createTagsCommand());
-program.addCommand(createQueryCommand());
+
 program.addCommand(createInitCommand());
 program.addCommand(createPullCommand());
 

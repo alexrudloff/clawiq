@@ -1,14 +1,14 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { loadConfig, saveConfig, ClawIQConfig } from '../config.js';
+import { execFile } from 'child_process';
+import { loadConfig, saveConfig, ClawIQConfig, API_ENDPOINT } from '../config.js';
 import { ClawIQClient } from '../api.js';
-import { loadOpenClawConfig, saveOpenClawConfig, backupOpenClawConfig, agentExists, OPENCLAW_DIR } from '../openclaw.js';
-import { PERSONAS, getPersona, isValidPersona } from '../personas.js';
-import { createWorkspace, discoverWorkspaces, ensureClawiqSkillSymlink, workspaceExists } from '../workspace.js';
+import { handleError } from '../format.js';
+import { loadOpenClawConfig, saveOpenClawConfig, backupOpenClawConfig, agentExists } from '../openclaw.js';
+import { CLAWIQ_AGENT } from '../personas.js';
+import { createWorkspace, discoverWorkspaces, workspaceExists, appendClawiqTools, installClawiqSkill } from '../workspace.js';
 import * as readline from 'readline';
-
-const PRODUCTION_ENDPOINT = 'https://api.clawiq.md';
 
 function prompt(question: string): Promise<string> {
   const rl = readline.createInterface({
@@ -24,64 +24,10 @@ function prompt(question: string): Promise<string> {
   });
 }
 
-async function promptPersona(): Promise<string> {
-  console.log(chalk.bold('\nChoose your monitoring persona:\n'));
-
-  for (let i = 0; i < PERSONAS.length; i++) {
-    const p = PERSONAS[i];
-    console.log(`  ${chalk.bold(`${i + 1})`)} ${p.name} ${p.emoji}`);
-    console.log(`     ${chalk.dim(p.tagline)}\n`);
-  }
-
-  while (true) {
-    const answer = await prompt('Select persona (1-3): ');
-    const num = parseInt(answer, 10);
-    if (num >= 1 && num <= 3) {
-      return PERSONAS[num - 1].id;
-    }
-    // Also accept persona id directly
-    if (isValidPersona(answer)) {
-      return answer;
-    }
-    console.log(chalk.yellow('  Please enter 1, 2, or 3'));
-  }
-}
-
-async function postOnboarding(apiEndpoint: string, apiKey: string, personaId: string): Promise<boolean> {
-  try {
-    const url = `${apiEndpoint}/v1/onboarding`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ persona: personaId }),
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      let message = text;
-      try {
-        const json = JSON.parse(text);
-        message = json.error || text;
-      } catch { /* use raw text */ }
-      throw new Error(`${response.status}: ${message}`);
-    }
-
-    return true;
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.log(chalk.yellow('  \u26a0 Could not persist persona server-side: ') + chalk.dim(msg));
-    return false;
-  }
-}
-
 export function createInitCommand(): Command {
   const cmd = new Command('init')
-    .description('Set up ClawIQ with API key, monitoring persona, and agent workspace')
+    .description('Set up ClawIQ agent, OTEL diagnostics, and agent workspaces')
     .option('--api-key <key>', 'ClawIQ API key')
-    .option('--persona <id>', 'Monitoring persona (grip, pinchy, clawfucius)')
     .option('--non-interactive', 'Skip prompts, use flags only')
     .action(async (options) => {
       const existingConfig = loadConfig();
@@ -112,14 +58,9 @@ export function createInitCommand(): Command {
         }
         config.apiKey = apiKey;
 
-        // Use production endpoint
-        const apiEndpoint = PRODUCTION_ENDPOINT;
-        config.endpoint = apiEndpoint;
-        config.apiEndpoint = apiEndpoint;
-
         // Validate API key
         const spinner = ora('Validating API key...').start();
-        const client = new ClawIQClient(apiEndpoint, apiKey);
+        const client = new ClawIQClient(API_ENDPOINT, apiKey);
         try {
           await client.getTags(undefined, 1);
           spinner.succeed('API key valid');
@@ -135,51 +76,12 @@ export function createInitCommand(): Command {
           }
         }
 
-        // ── [2] Persona Selection ──────────────────────────────
-        let personaId: string;
-
-        if (options.nonInteractive) {
-          personaId = options.persona;
-          if (!personaId || !isValidPersona(personaId)) {
-            console.error(chalk.red('Error: --persona required in non-interactive mode (grip, pinchy, clawfucius)'));
-            process.exit(1);
-          }
-        } else {
-          personaId = await promptPersona();
-        }
-
-        const persona = getPersona(personaId)!;
-        console.log(chalk.green('\u2713') + ` Selected: ${persona.name} ${persona.emoji}`);
-
-        // Check if workspace already exists
-        if (workspaceExists(personaId)) {
-          if (!options.nonInteractive) {
-            const overwrite = await prompt(
-              chalk.yellow(`\nWorkspace for ${persona.name} already exists. Overwrite? (y/N): `)
-            );
-            if (overwrite.toLowerCase() !== 'y') {
-              console.log(chalk.dim('Keeping existing workspace'));
-              // Still save config and continue
-              saveConfig(config);
-              console.log(chalk.green('\u2713') + ' Configuration saved to ~/.clawiq/config.json');
-              return;
-            }
-          }
-        }
-
-        // ── [3] POST /v1/onboarding ────────────────────────────
-        const onboardSpinner = ora('Persisting persona...').start();
-        const persisted = await postOnboarding(apiEndpoint, apiKey, personaId);
-        if (persisted) {
-          onboardSpinner.succeed('Persona saved to account');
-        } else {
-          onboardSpinner.warn('Persona saved locally only');
-        }
-
-        // ── [4] Configure OTEL in openclaw.json ────────────────
+        // ── [2] Backup openclaw.json ─────────────────────────────
         if (backupOpenClawConfig()) {
-          console.log(chalk.green('\u2713') + ' Backed up openclaw.json → openclaw.pre-clawiq.json');
+          console.log(chalk.green('\u2713') + ' Backed up openclaw.json \u2192 openclaw.pre-clawiq.json');
         }
+
+        // ── [3] Configure OTEL in openclaw.json ──────────────────
         const openclawConfig = loadOpenClawConfig();
 
         if (!openclawConfig.diagnostics) {
@@ -191,7 +93,7 @@ export function createInitCommand(): Command {
 
         openclawConfig.diagnostics.enabled = true;
         openclawConfig.diagnostics.otel.enabled = true;
-        openclawConfig.diagnostics.otel.endpoint = apiEndpoint;
+        openclawConfig.diagnostics.otel.endpoint = API_ENDPOINT;
         if (!openclawConfig.diagnostics.otel.headers) {
           openclawConfig.diagnostics.otel.headers = {};
         }
@@ -200,24 +102,43 @@ export function createInitCommand(): Command {
         openclawConfig.diagnostics.otel.metrics = true;
         openclawConfig.diagnostics.otel.logs = true;
 
-        // ── [5] Discover workspaces, ensure clawiq skill linked ─
-        const workspaces = discoverWorkspaces();
-        let linkedCount = 0;
-        for (const ws of workspaces) {
-          if (ensureClawiqSkillSymlink(ws)) {
-            linkedCount++;
+        // ── [3b] Enable diagnostics-otel plugin ──────────────────
+        if (!openclawConfig.plugins) {
+          openclawConfig.plugins = {};
+        }
+        if (!openclawConfig.plugins.entries) {
+          openclawConfig.plugins.entries = {};
+        }
+        if (!openclawConfig.plugins.entries['diagnostics-otel']?.enabled) {
+          openclawConfig.plugins.entries['diagnostics-otel'] = { enabled: true };
+          console.log(chalk.green('\u2713') + ' diagnostics-otel plugin enabled');
+        }
+
+        console.log(chalk.green('\u2713') + ' OTEL diagnostics configured');
+
+        // ── [4] Create ClawIQ agent workspace ────────────────────
+        const agentId = CLAWIQ_AGENT.id;
+
+        if (workspaceExists(agentId)) {
+          if (!options.nonInteractive) {
+            const overwrite = await prompt(
+              chalk.yellow(`\nWorkspace for ${CLAWIQ_AGENT.name} already exists. Overwrite? (y/N): `)
+            );
+            if (overwrite.toLowerCase() !== 'y') {
+              console.log(chalk.dim('Keeping existing workspace'));
+            } else {
+              const wsSpinner = ora(`Creating ${CLAWIQ_AGENT.name} workspace...`).start();
+              createWorkspace(CLAWIQ_AGENT);
+              wsSpinner.succeed(`Workspace created: ~/.openclaw/workspace-${agentId}/`);
+            }
           }
-        }
-        if (linkedCount > 0) {
-          console.log(chalk.green('\u2713') + ` ClawIQ skill linked in ${linkedCount} workspace(s)`);
+        } else {
+          const wsSpinner = ora(`Creating ${CLAWIQ_AGENT.name} workspace...`).start();
+          createWorkspace(CLAWIQ_AGENT);
+          wsSpinner.succeed(`Workspace created: ~/.openclaw/workspace-${agentId}/`);
         }
 
-        // ── [6] Create agent workspace ─────────────────────────
-        const wsSpinner = ora(`Creating ${persona.name}'s workspace...`).start();
-        const workspacePath = createWorkspace(persona);
-        wsSpinner.succeed(`Workspace created: ~/.openclaw/workspace-${personaId}/`);
-
-        // ── [7] Register agent in openclaw.json ────────────────
+        // ── [5] Register agent in openclaw.json ──────────────────
         if (!openclawConfig.agents) {
           openclawConfig.agents = {};
         }
@@ -225,44 +146,88 @@ export function createInitCommand(): Command {
           openclawConfig.agents.list = [];
         }
 
-        if (!agentExists(openclawConfig, personaId)) {
+        const workspacePath = `~/.openclaw/workspace-${agentId}`;
+        if (!agentExists(openclawConfig, agentId)) {
           openclawConfig.agents.list.push({
-            id: personaId,
+            id: agentId,
             workspace: workspacePath,
           });
-          console.log(chalk.green('\u2713') + ` Agent "${personaId}" registered in openclaw.json`);
+          console.log(chalk.green('\u2713') + ` Agent "${agentId}" registered in openclaw.json`);
         } else {
-          // Update workspace path in case it changed
-          const existing = openclawConfig.agents.list.find((a) => a.id === personaId);
+          const existing = openclawConfig.agents.list.find((a) => a.id === agentId);
           if (existing) {
             existing.workspace = workspacePath;
           }
-          console.log(chalk.dim(`  Agent "${personaId}" already in openclaw.json (updated workspace path)`));
+          console.log(chalk.dim(`  Agent "${agentId}" already in openclaw.json (updated)`));
         }
 
         saveOpenClawConfig(openclawConfig);
-        console.log(chalk.green('\u2713') + ' OpenClaw config updated');
+        console.log(chalk.green('\u2713') + ' OpenClaw config saved');
 
-        // ── [8] Save ClawIQ config ─────────────────────────────
-        config.defaultAgent = personaId;
+        // ── [6] Update TOOLS.md in all existing workspaces ───────
+        const workspaces = discoverWorkspaces();
+        let updatedCount = 0;
+        for (const ws of workspaces) {
+          if (appendClawiqTools(ws)) {
+            updatedCount++;
+          }
+        }
+        if (updatedCount > 0) {
+          console.log(chalk.green('\u2713') + ` ClawIQ added to TOOLS.md in ${updatedCount} workspace(s)`);
+        }
+
+        // ── [6b] Install shared clawiq skill ─────────────────────
+        if (installClawiqSkill()) {
+          console.log(chalk.green('\u2713') + ' ClawIQ skill installed at workspace/skills/clawiq/');
+        }
+
+        // ── [7] Save ClawIQ config ───────────────────────────────
+        config.defaultAgent = agentId;
         saveConfig(config);
         console.log(chalk.green('\u2713') + ' Configuration saved to ~/.clawiq/config.json');
 
-        // ── Done ───────────────────────────────────────────────
+        // ── [8] Restart openclaw gateway ─────────────────────────
+        const gwSpinner = ora('Restarting OpenClaw gateway...').start();
+        try {
+          await new Promise<void>((resolve, reject) => {
+            execFile('openclaw', ['gateway', 'restart'], (error) => {
+              if (error) reject(error);
+              else resolve();
+            });
+          });
+          gwSpinner.succeed('OpenClaw gateway restarted');
+        } catch {
+          gwSpinner.warn('Could not restart gateway (restart manually with: openclaw gateway restart)');
+        }
+
+        // ── [9] Send setup-complete marker ───────────────────────
+        try {
+          await client.emit([{
+            type: 'health',
+            name: 'setup-complete',
+            source: 'agent',
+            severity: 'info',
+            agent_id: agentId,
+          }]);
+          console.log(chalk.green('\u2713') + ' Setup marker sent');
+        } catch {
+          console.log(chalk.dim('  Could not send setup marker (API may be unreachable)'));
+        }
+
+        // ── Done ─────────────────────────────────────────────────
         console.log(chalk.bold.green('\n\u2705 Setup complete!\n'));
-        console.log(chalk.dim('Your monitoring agent is ready. Here\'s what was set up:'));
-        console.log(`  ${chalk.dim('Persona:')}    ${persona.name} ${persona.emoji}`);
-        console.log(`  ${chalk.dim('Workspace:')}  ~/.openclaw/workspace-${personaId}/`);
+        console.log(chalk.dim('What was set up:'));
+        console.log(`  ${chalk.dim('Agent:')}      ${CLAWIQ_AGENT.name} ${CLAWIQ_AGENT.emoji}`);
+        console.log(`  ${chalk.dim('Workspace:')}  ~/.openclaw/workspace-${agentId}/`);
+        console.log(`  ${chalk.dim('OTEL:')}       ${API_ENDPOINT}`);
         console.log(`  ${chalk.dim('API Key:')}    ${apiKey.slice(0, 15)}...`);
-        console.log(`  ${chalk.dim('Endpoint:')}   ${apiEndpoint}`);
         console.log('');
         console.log(chalk.dim('Try it out:'));
-        console.log(`  ${chalk.cyan('clawiq emit task hello-world --agent ' + personaId)}`);
+        console.log(`  ${chalk.cyan('clawiq emit task hello-world --agent ' + agentId)}`);
         console.log(`  ${chalk.cyan('clawiq pull all --since 1h')}`);
         console.log('');
       } catch (error) {
-        console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
-        process.exit(1);
+        handleError(error);
       }
     });
 
