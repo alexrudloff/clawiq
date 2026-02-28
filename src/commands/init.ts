@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import { execFile } from 'child_process';
-import { loadConfig, saveConfig, ClawIQConfig, API_ENDPOINT } from '../config.js';
+import { loadConfig, saveConfig, ClawIQConfig, API_ENDPOINT, CLI_VERSION } from '../config.js';
 import { ClawIQClient } from '../api.js';
 import { handleError } from '../format.js';
 import { loadOpenClawConfig, saveOpenClawConfig, backupOpenClawConfig, agentExists } from '../openclaw.js';
@@ -60,7 +60,7 @@ export function createInitCommand(): Command {
 
         // Validate API key
         const spinner = ora('Validating API key...').start();
-        const client = new ClawIQClient(API_ENDPOINT, apiKey);
+        const client = new ClawIQClient(API_ENDPOINT, apiKey, CLI_VERSION);
         try {
           await client.getTags(undefined, 1);
           spinner.succeed('API key valid');

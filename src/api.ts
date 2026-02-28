@@ -239,7 +239,8 @@ export interface FindingsResponse {
 export class ClawIQClient {
   constructor(
     private endpoint: string,
-    private apiKey: string
+    private apiKey: string,
+    private version?: string
   ) {}
 
   private async request<T>(
@@ -252,6 +253,9 @@ export class ClawIQClient {
       'Authorization': `Bearer ${this.apiKey}`,
       'Content-Type': 'application/json',
     };
+    if (this.version) {
+      headers['X-ClawIQ-Version'] = this.version;
+    }
 
     const response = await fetch(url, {
       method,

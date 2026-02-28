@@ -10,7 +10,7 @@ import {
   SpanEvent,
   TraceRecord,
 } from '../api.js';
-import { API_ENDPOINT, loadConfig, requireApiKey } from '../config.js';
+import { API_ENDPOINT, loadConfig, requireApiKey, CLI_VERSION } from '../config.js';
 import { resolveTimeRange } from '../time.js';
 import { TYPE_ICONS, parseIntOption, handleError } from '../format.js';
 
@@ -470,7 +470,7 @@ function printTimelineTable(items: TimelineItem[]): void {
 function buildClient(options: CommonPullOptions): ClawIQClient {
   const config = loadConfig();
   const apiKey = requireApiKey(config, options.apiKey);
-  return new ClawIQClient(API_ENDPOINT, apiKey);
+  return new ClawIQClient(API_ENDPOINT, apiKey, CLI_VERSION);
 }
 
 function toTraceRecord(event: SpanEvent): TraceRecord {

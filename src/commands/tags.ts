@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import Table from 'cli-table3';
-import { loadConfig, requireApiKey, API_ENDPOINT } from '../config.js';
+import { loadConfig, requireApiKey, API_ENDPOINT, CLI_VERSION } from '../config.js';
 import { ClawIQClient } from '../api.js';
 import { handleError } from '../format.js';
 
@@ -18,7 +18,7 @@ export function createTagsCommand(): Command {
 
       try {
         const apiKey = requireApiKey(config, options.apiKey);
-        const client = new ClawIQClient(API_ENDPOINT, apiKey);
+        const client = new ClawIQClient(API_ENDPOINT, apiKey, CLI_VERSION);
 
         const tags = await client.getTags(options.since, options.limit);
 

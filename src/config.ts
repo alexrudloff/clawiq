@@ -2,6 +2,9 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 
+const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8')) as { version: string };
+export const CLI_VERSION: string = pkg.version;
+
 export interface ClawIQConfig {
   apiKey?: string;
   defaultAgent?: string;

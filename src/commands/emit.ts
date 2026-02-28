@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { loadConfig, requireApiKey, API_ENDPOINT } from '../config.js';
+import { loadConfig, requireApiKey, API_ENDPOINT, CLI_VERSION } from '../config.js';
 import { ClawIQClient, ClawIQEvent } from '../api.js';
 import { handleError } from '../format.js';
 
@@ -130,7 +130,7 @@ export function createEmitCommand(): Command {
         }
 
         const apiKey = requireApiKey(config, options.apiKey);
-        const client = new ClawIQClient(API_ENDPOINT, apiKey);
+        const client = new ClawIQClient(API_ENDPOINT, apiKey, CLI_VERSION);
 
         const event: ClawIQEvent = {
           type,
