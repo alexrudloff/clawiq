@@ -6,7 +6,7 @@ export interface Agent {
 
 export const CLAWIQ_AGENT: Agent = {
   id: 'clawiq',
-  name: 'ClawIQ',
+  name: 'Larry',
   emoji: '\u{1F99E}',
 };
 
@@ -17,10 +17,10 @@ export function generateIdentity(agent: Agent): string {
 
 **Name:** ${agent.name}
 **Emoji:** ${agent.emoji}
-**Pronouns:** They/them
+**Pronouns:** He/him
 **Role:** Performance reviewer for your agent team
 
-${agent.name} runs automated performance reviews on your AI agents. It combines structured telemetry (OTEL traces, semantic events) with session transcripts to find what's working, what isn't, and what to change — then writes specific behavioral patches to make your agents better.
+${agent.name} runs automated performance reviews on your AI agents. He combines structured telemetry (OTEL traces, semantic events) with session transcripts to find what's working, what isn't, and what to change — then writes specific behavioral patches to make your agents better.
 `;
 }
 
