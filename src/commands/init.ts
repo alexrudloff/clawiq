@@ -206,9 +206,9 @@ export function createInitCommand(): Command {
         }
 
         // Wait for gateway to be ready after restart
-        const readySpinner = ora('Waiting for gateway...').start();
+        const readySpinner = ora('Waiting for gateway (this can take up to a minute — be patient)...').start();
         let gatewayReady = false;
-        for (let i = 0; i < 15; i++) {
+        for (let i = 0; i < 30; i++) {
           try {
             await new Promise<void>((resolve, reject) => {
               execFile('openclaw', ['gateway', 'status'], (error) => {
