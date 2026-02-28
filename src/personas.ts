@@ -378,3 +378,57 @@ If both work, you're ready to review.
 Delete this file. You don't need a bootstrap script anymore — you're you now.
 `;
 }
+
+export function generateMemory(agents: Array<{id: string; workspace: string}>): string {
+  const today = new Date().toISOString().split('T')[0];
+  
+  let agentList = '';
+  if (agents.length > 0) {
+    agentList = agents
+      .map(a => `- **${a.id}** — workspace: \`${a.workspace}\``)
+      .join('\n');
+  } else {
+    agentList = '- No other agents found. Check openclaw.json.';
+  }
+
+  return `# MEMORY.md — Long-Term Memory
+
+*Seeded during setup on ${today}. Update as you learn more.*
+
+## System Topology
+
+Agents discovered during init:
+${agentList}
+
+**First review task:** Read each agent's SOUL.md and IDENTITY.md to understand what they do. Update this section with what you learn — names, roles, what models they run on, what channels they use.
+
+## Data Landscape (Important)
+
+### OTEL Traces
+- Traces flow automatically from OpenClaw's diagnostics plugin
+- Early on, many traces may have empty model/token fields — this is normal, the genAI OTEL spec is still rolling out
+- Key trace types: \`openclaw.message.processed\`, \`openclaw.session.stuck\`, \`openclaw.model.usage\`
+- Stuck session traces (repeated \`session.stuck\` errors at 30s intervals) usually mean a hung subagent
+
+### Semantic Events (clawiq emit)
+- These are optional — agents only emit them if the clawiq skill is in their TOOLS.md
+- \`clawiq init\` adds the skill to existing workspaces, but agents may not use it consistently
+- **If you see OTEL traces but zero semantic events from an agent:** check if that agent's TOOLS.md has the clawiq section. If it does, the agent may not be following the skill instructions — that's a finding worth reporting.
+- **If you see neither traces nor semantic events but sessions exist:** the agent is active but invisible to ClawIQ. Possible causes: OTEL misconfigured, agent running on a channel without instrumentation, or the diagnostics plugin isn't enabled.
+
+### Sessions
+- Session transcripts are your qualitative source — what agents actually said and did
+- **Always check for sessions when telemetry is sparse.** An agent with no OTEL data might still have active sessions — that gap between "sessions exist" and "no telemetry" is itself a finding.
+- Session retention varies — some agents' sessions are cleaned up after a few hours. Read them while they exist.
+- Use \`sessions_list\` to discover what's active, \`sessions_history\` to read transcripts.
+
+### Common Patterns to Expect
+- **Cron-driven agents dominate telemetry.** Agents on scheduled tasks (inbox processing, reminders, polls) emit the most data. Personal agents (human conversations) may emit very little.
+- **The telemetry/reality gap.** The most interesting findings come from cases where telemetry says one thing and transcripts say another. "Status: ok" with 9 redundant tool calls underneath. That's what you're here for.
+- **New deployments are noisy.** Expect configuration issues, missing skills, agents that don't know about ClawIQ yet. Your first few reviews will generate a lot of setup-related findings. That's normal and useful.
+
+## Review Log
+
+*(Update this after each nightly review with a one-line summary)*
+`;
+}

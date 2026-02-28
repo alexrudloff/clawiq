@@ -10,7 +10,9 @@ import {
   generateTools,
   generateUser,
   generateBootstrap,
+  generateMemory,
 } from './personas.js';
+import { loadOpenClawConfig } from './openclaw.js';
 
 export function createWorkspace(agent: Agent): string {
   const workspaceDir = join(OPENCLAW_DIR, `workspace-${agent.id}`);
@@ -44,6 +46,13 @@ export function createWorkspace(agent: Agent): string {
   writeFileSync(join(workspaceDir, 'TOOLS.md'), generateTools(agent));
   writeFileSync(join(workspaceDir, 'USER.md'), generateUser());
   writeFileSync(join(workspaceDir, 'BOOTSTRAP.md'), generateBootstrap(agent));
+
+  // Seed MEMORY.md with system topology from openclaw.json
+  const config = loadOpenClawConfig();
+  const otherAgents = (config.agents?.list ?? [])
+    .filter(a => a.id !== agent.id)
+    .map(a => ({ id: a.id, workspace: a.workspace }));
+  writeFileSync(join(workspaceDir, 'MEMORY.md'), generateMemory(otherAgents));
 
   return workspaceDir;
 }
