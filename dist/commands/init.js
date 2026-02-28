@@ -234,7 +234,7 @@ function createInitCommand() {
             for (let i = 0; i < 30; i++) {
                 try {
                     await new Promise((resolve, reject) => {
-                        (0, child_process_1.execFile)('openclaw', ['gateway', 'status'], (error) => {
+                        (0, child_process_1.execFile)('openclaw', ['cron', 'list', '--json'], (error) => {
                             if (error)
                                 reject(error);
                             else

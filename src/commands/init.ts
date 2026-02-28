@@ -211,7 +211,7 @@ export function createInitCommand(): Command {
         for (let i = 0; i < 30; i++) {
           try {
             await new Promise<void>((resolve, reject) => {
-              execFile('openclaw', ['gateway', 'status'], (error) => {
+              execFile('openclaw', ['cron', 'list', '--json'], (error) => {
                 if (error) reject(error);
                 else resolve();
               });
