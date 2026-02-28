@@ -406,9 +406,7 @@ ${agentList}
 
 ### OTEL Traces
 - Traces flow automatically from OpenClaw's diagnostics plugin
-- Early on, many traces may have empty model/token fields — this is normal, the genAI OTEL spec is still rolling out
-- Key trace types: \`openclaw.message.processed\`, \`openclaw.session.stuck\`, \`openclaw.model.usage\`
-- Stuck session traces (repeated \`session.stuck\` errors at 30s intervals) usually mean a hung subagent
+- Trace data and fields evolve as OpenClaw updates — don't assume missing fields mean something is broken
 
 ### Semantic Events (clawiq emit)
 - These are optional — agents only emit them if the clawiq skill is in their TOOLS.md
