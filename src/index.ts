@@ -8,6 +8,7 @@ import { createInitCommand } from './commands/init.js';
 import { createPullCommand } from './commands/pull.js';
 import { createReportCommand } from './commands/report.js';
 import { createUninstallCommand } from './commands/uninstall.js';
+import { createUpdateCommand } from './commands/update.js';
 import { CLI_VERSION } from './config.js';
 
 const program = new Command();
@@ -24,5 +25,6 @@ program.addCommand(createInitCommand());
 program.addCommand(createPullCommand());
 program.addCommand(createReportCommand());
 program.addCommand(createUninstallCommand());
+program.addCommand(createUpdateCommand());
 
 program.parse();

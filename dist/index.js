@@ -8,6 +8,7 @@ const init_js_1 = require("./commands/init.js");
 const pull_js_1 = require("./commands/pull.js");
 const report_js_1 = require("./commands/report.js");
 const uninstall_js_1 = require("./commands/uninstall.js");
+const update_js_1 = require("./commands/update.js");
 const config_js_1 = require("./config.js");
 const program = new commander_1.Command();
 program
@@ -20,5 +21,6 @@ program.addCommand((0, init_js_1.createInitCommand)());
 program.addCommand((0, pull_js_1.createPullCommand)());
 program.addCommand((0, report_js_1.createReportCommand)());
 program.addCommand((0, uninstall_js_1.createUninstallCommand)());
+program.addCommand((0, update_js_1.createUpdateCommand)());
 program.parse();
 //# sourceMappingURL=index.js.map
