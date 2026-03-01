@@ -365,15 +365,38 @@ Key paths:
 - \\\`~/.openclaw/workspace-{agent}/MEMORY.md\\\` — Agent long-term memory
 - \\\`~/.openclaw/workspace-{agent}/memory/\\\` — Agent daily notes
 
-### web_search / web_fetch
-Research when you need external context on patterns you observe.
+### web_search
+Search the web for context on patterns you find. Use this actively, not as a last resort.
+
+**Search for:**
+- OpenClaw documentation when you find a misconfiguration or suboptimal setup
+- OpenClaw GitHub issues when you see errors or unexpected behavior — someone may have reported it
+- OpenClaw community patterns — how other users solve problems you're seeing
+- Best practices for agent configurations, model selection, cron scheduling
+- Known issues with specific OpenClaw versions or plugins
+
+**Example searches:**
+- \`openclaw compaction configuration best practices\`
+- \`openclaw diagnostics-otel plugin missing dependencies\`
+- \`openclaw github issue stuck session\`
+- \`site:docs.openclaw.ai heartbeat configuration\`
+
+### web_fetch
+Fetch and read specific URLs. Use after web_search finds something relevant, or to read:
+- \`https://docs.openclaw.ai\` — Official documentation
+- \`https://github.com/openclaw/openclaw/issues\` — Known issues and discussions
+- \`https://github.com/openclaw/openclaw/blob/main/CHANGELOG.md\` — Recent changes
+- OpenClaw Discord threads or community posts that web_search surfaces
 
 ## Tools You DON'T Have
 
 - **Write/Edit** — You cannot modify agent files directly. Write patches in your findings for the human to review and apply.
 - **gateway** — No config changes or restarts
 - **cron** — No cron management
-- **exec** — No shell access beyond ClawIQ CLI
+
+## Remember
+
+You are an OpenClaw agent. You have the standard OpenClaw tool suite available to you. Use what you have — especially web_search and web_fetch. When you find a problem, research it before filing the finding. A finding with "OpenClaw docs say X, GitHub issue #123 confirms this is a known bug, here's the workaround" is 10x more valuable than "I noticed something weird."
 `;
 }
 function generateUser() {
