@@ -55,7 +55,7 @@ export function requireApiKey(config: ClawIQConfig, flagApiKey?: string): string
   const apiKey = flagApiKey || config.apiKey;
   if (!apiKey) {
     throw new Error(
-      'API key required. Set via:\n' +
+      'API key required. Get one at https://clawiq.md, then set via:\n' +
       '  --api-key flag\n' +
       '  CLAWIQ_API_KEY environment variable\n' +
       '  clawiq init'

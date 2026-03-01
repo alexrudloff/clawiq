@@ -49,7 +49,7 @@ function saveConfig(config) {
 function requireApiKey(config, flagApiKey) {
     const apiKey = flagApiKey || config.apiKey;
     if (!apiKey) {
-        throw new Error('API key required. Set via:\n' +
+        throw new Error('API key required. Get one at https://clawiq.md, then set via:\n' +
             '  --api-key flag\n' +
             '  CLAWIQ_API_KEY environment variable\n' +
             '  clawiq init');
