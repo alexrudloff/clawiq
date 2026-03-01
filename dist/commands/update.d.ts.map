@@ -1,1 +1,1 @@
-{"version":3,"file":"update.d.ts","sourceRoot":"","sources":["../../src/commands/update.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,OAAO,EAAE,MAAM,WAAW,CAAC;AAgBpC,wBAAgB,mBAAmB,IAAI,OAAO,CAyC7C"}
+{"version":3,"file":"update.d.ts","sourceRoot":"","sources":["../../src/commands/update.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,OAAO,EAAE,MAAM,WAAW,CAAC;AA4BpC,wBAAgB,mBAAmB,IAAI,OAAO,CAoE7C"}
