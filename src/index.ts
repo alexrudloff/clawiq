@@ -7,6 +7,7 @@ import { createTagsCommand } from './commands/tags.js';
 import { createInitCommand } from './commands/init.js';
 import { createPullCommand } from './commands/pull.js';
 import { createReportCommand } from './commands/report.js';
+import { createSessionCommand } from './commands/session.js';
 import { createUninstallCommand } from './commands/uninstall.js';
 import { createUpdateCommand } from './commands/update.js';
 import { CLI_VERSION } from './config.js';
@@ -24,6 +25,7 @@ program.addCommand(createTagsCommand());
 program.addCommand(createInitCommand());
 program.addCommand(createPullCommand());
 program.addCommand(createReportCommand());
+program.addCommand(createSessionCommand());
 program.addCommand(createUninstallCommand());
 program.addCommand(createUpdateCommand());
 

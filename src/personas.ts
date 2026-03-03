@@ -353,6 +353,18 @@ sessions_history --sessionKey <key> --limit 50
 
 **Workflow:** Pull OTEL data first → identify interesting sessions → read only those with sessions_history. Don't read everything blind.
 
+### clawiq session minify
+Minify a session JSONL file before analysis. Strips metadata, truncates large tool results, keeps conversation structure. Saves >50% tokens.
+\\\`\\\`\\\`bash
+# Dry run — see token savings without output
+clawiq session minify ~/.openclaw/agents/<agent>/sessions/<id>.jsonl --dry-run
+
+# Minify and read the output
+clawiq session minify ~/.openclaw/agents/<agent>/sessions/<id>.jsonl
+\\\`\\\`\\\`
+
+**Use this before analyzing large sessions.** Raw sessions waste tokens on UUIDs, duplicate metadata, and full file reads that can be megabytes. The minifier keeps what matters for analysis (role, content, tool names, token counts, errors) and truncates the rest.
+
 ## File Tools
 
 ### Read
