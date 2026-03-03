@@ -55,10 +55,8 @@ function discoverWorkspaces() {
 function workspaceExists(agentId) {
     return (0, fs_1.existsSync)((0, path_1.join)(openclaw_js_1.OPENCLAW_DIR, `workspace-${agentId}`));
 }
-const CLAWIQ_TOOLS_MARKER = '<!-- clawiq-tools -->';
-const CLAWIQ_TOOLS_END_MARKER = '<!-- /clawiq-tools -->';
+const CLAWIQ_TOOLS_HEADER = '## ClawIQ CLI';
 const CLAWIQ_TOOLS_SECTION = `
-${CLAWIQ_TOOLS_MARKER}
 ## ClawIQ CLI
 
 Report and query semantic events, traces, and errors.
@@ -70,6 +68,24 @@ clawiq emit <type> <name> [options]
 Types: task, output, correction, error, feedback, health, note
 
 Common flags: \`--agent <id>\`, \`--severity <level>\`, \`--quality-tags <tags>\`, \`-q\` (quiet)
+
+**Emit at task completion — as a reflex, not an afterthought.**
+
+\`\`\`bash
+# Task completed successfully
+clawiq emit task "<task-name>" --agent <id> --action-tags "completed" -q
+# Task failed or required correction
+clawiq emit task "<task-name>" --agent <id> --action-tags "failed" --quality-tags "user-corrected" -q
+# Unexpected observation
+clawiq emit note "<observation>" --agent <id> --severity low -q
+# Something broke
+clawiq emit error "<what-broke>" --agent <id> --severity medium -q
+\`\`\`
+
+Tag categories:
+- \`--action-tags\` — free-form outcome tags: \`completed\`, \`failed\`, \`delegated\`, \`skipped\`
+- \`--quality-tags\` — problem flags only: \`hallucination\`, \`wrong-recipient\`, \`wrong-data\`, \`self-corrected\`, \`user-corrected\`, \`retry\`, \`fallback\`, \`slow\`, \`started\`
+- \`--domain-tags\` — free-form topic tags: \`clawiq\`, \`family\`, \`consulting\`, etc.
 
 ### Pull
 \`\`\`bash
@@ -97,7 +113,6 @@ clawiq report show <id-prefix>     # prefix fallback for convenience
 Use full finding IDs when possible. Exact UUID lookup works reliably for older findings.
 
 Common flags: \`--agent <id>\`, \`--impact <level>\`, \`--json\`, \`-q\` (quiet)
-${CLAWIQ_TOOLS_END_MARKER}
 `;
 const SHARED_SKILLS_DIR = (0, path_1.join)(openclaw_js_1.OPENCLAW_DIR, 'workspace', 'skills');
 const CLAWIQ_SKILL = `---
@@ -232,7 +247,7 @@ function appendClawiqTools(workspacePath) {
         return false;
     }
     const existing = (0, fs_1.readFileSync)(toolsPath, 'utf-8');
-    if (existing.includes(CLAWIQ_TOOLS_MARKER)) {
+    if (existing.includes(CLAWIQ_TOOLS_HEADER)) {
         return false;
     }
     (0, fs_1.writeFileSync)(toolsPath, existing.trimEnd() + '\n' + CLAWIQ_TOOLS_SECTION);
@@ -248,18 +263,15 @@ function removeClawiqTools(workspacePath) {
         return false;
     }
     const existing = (0, fs_1.readFileSync)(toolsPath, 'utf-8');
-    const markerIndex = existing.indexOf(CLAWIQ_TOOLS_MARKER);
-    if (markerIndex === -1) {
+    const headerIndex = existing.indexOf(CLAWIQ_TOOLS_HEADER);
+    if (headerIndex === -1) {
         return false;
     }
-    const endIndex = existing.indexOf(CLAWIQ_TOOLS_END_MARKER, markerIndex);
-    if (endIndex !== -1) {
-        const after = endIndex + CLAWIQ_TOOLS_END_MARKER.length;
-        const updated = (existing.slice(0, markerIndex) + existing.slice(after)).trimEnd();
-        (0, fs_1.writeFileSync)(toolsPath, updated.length ? updated + '\n' : '');
-        return true;
-    }
-    const updated = existing.slice(0, markerIndex).trimEnd();
+    // Find the next ## header after the ClawIQ section
+    const afterHeader = existing.indexOf('\n## ', headerIndex + CLAWIQ_TOOLS_HEADER.length);
+    const before = existing.slice(0, headerIndex);
+    const after = afterHeader !== -1 ? existing.slice(afterHeader) : '';
+    const updated = (before + after).trimEnd();
     (0, fs_1.writeFileSync)(toolsPath, updated.length ? updated + '\n' : '');
     return true;
 }
