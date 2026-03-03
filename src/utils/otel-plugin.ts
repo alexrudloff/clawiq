@@ -1,6 +1,6 @@
 import { existsSync } from 'fs';
 import { join, dirname, resolve } from 'path';
-import { execFile, execFileSync } from 'child_process';
+import { execFile, execSync } from 'child_process';
 import chalk from 'chalk';
 import ora from 'ora';
 
@@ -9,15 +9,23 @@ import ora from 'ora';
  * Derives path from `which openclaw` so it works regardless of install method
  * (homebrew, npm global, nvm, volta, custom prefix, etc.)
  */
-function getOtelPluginDir(): string | null {
+function getOtelPluginDir(): string {
   try {
-    const openclaw = execFileSync('which', ['openclaw'], { encoding: 'utf8' }).trim();
-    // openclaw binary is at <prefix>/bin/openclaw
-    // extensions are at <prefix>/lib/node_modules/openclaw/extensions/
-    const prefix = resolve(dirname(openclaw), '..');
-    return join(prefix, 'lib', 'node_modules', 'openclaw', 'extensions', 'diagnostics-otel');
+    const openclawBin = execSync('which openclaw', { encoding: 'utf8' }).trim();
+    // Resolve symlinks to get the real path
+    const realBin = execSync(`readlink -f "${openclawBin}" 2>/dev/null || echo "${openclawBin}"`, { encoding: 'utf8' }).trim();
+    // From /path/to/bin/openclaw → /path/to/lib/node_modules/openclaw/extensions/diagnostics-otel
+    const binDir = dirname(realBin);
+    const installRoot = resolve(binDir, '..', 'lib', 'node_modules', 'openclaw');
+    return join(installRoot, 'extensions', 'diagnostics-otel');
   } catch {
-    return null;
+    // Fallback: try npm root -g
+    try {
+      const npmRoot = execSync('npm root -g', { encoding: 'utf8' }).trim();
+      return join(npmRoot, 'openclaw', 'extensions', 'diagnostics-otel');
+    } catch {
+      return ''; // plugin not found, caller should handle
+    }
   }
 }
 

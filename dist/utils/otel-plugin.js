@@ -16,14 +16,23 @@ const ora_1 = __importDefault(require("ora"));
  */
 function getOtelPluginDir() {
     try {
-        const openclaw = (0, child_process_1.execFileSync)('which', ['openclaw'], { encoding: 'utf8' }).trim();
-        // openclaw binary is at <prefix>/bin/openclaw
-        // extensions are at <prefix>/lib/node_modules/openclaw/extensions/
-        const prefix = (0, path_1.resolve)((0, path_1.dirname)(openclaw), '..');
-        return (0, path_1.join)(prefix, 'lib', 'node_modules', 'openclaw', 'extensions', 'diagnostics-otel');
+        const openclawBin = (0, child_process_1.execSync)('which openclaw', { encoding: 'utf8' }).trim();
+        // Resolve symlinks to get the real path
+        const realBin = (0, child_process_1.execSync)(`readlink -f "${openclawBin}" 2>/dev/null || echo "${openclawBin}"`, { encoding: 'utf8' }).trim();
+        // From /path/to/bin/openclaw → /path/to/lib/node_modules/openclaw/extensions/diagnostics-otel
+        const binDir = (0, path_1.dirname)(realBin);
+        const installRoot = (0, path_1.resolve)(binDir, '..', 'lib', 'node_modules', 'openclaw');
+        return (0, path_1.join)(installRoot, 'extensions', 'diagnostics-otel');
     }
     catch {
-        return null;
+        // Fallback: try npm root -g
+        try {
+            const npmRoot = (0, child_process_1.execSync)('npm root -g', { encoding: 'utf8' }).trim();
+            return (0, path_1.join)(npmRoot, 'openclaw', 'extensions', 'diagnostics-otel');
+        }
+        catch {
+            return ''; // plugin not found, caller should handle
+        }
     }
 }
 /**
