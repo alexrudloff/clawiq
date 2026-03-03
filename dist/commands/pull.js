@@ -47,7 +47,7 @@ function buildAllCommand() {
                 (0, fetch_js_1.fetchErrorRecords)(client, options, range.start, range.end, mergeWindow, 0),
                 (0, fetch_js_1.fetchMarkers)(client, options, range.start, range.end),
             ]);
-            const traceItems = traceResult.traces.map((trace) => ({
+            const traceItems = (traceResult.traces ?? []).map((trace) => ({
                 kind: 'trace',
                 timestamp: trace.start_time,
                 summary: `${(0, filters_js_1.simplifyStatus)(trace.status)} ${trace.model || '-'} ${Math.round(trace.duration_ms)}ms`,
@@ -56,7 +56,7 @@ function buildAllCommand() {
                 model: trace.model,
                 agent: trace.agent_id || (trace.session_id ? (0, filters_js_1.getAgentFromSession)(trace.session_id) : undefined),
             }));
-            const errorItems = errorResult.errors.map((error) => ({
+            const errorItems = (errorResult.errors ?? []).map((error) => ({
                 kind: 'error',
                 timestamp: error.timestamp,
                 summary: `${error.error_type}${error.message ? `: ${error.message}` : ''}`,

@@ -140,7 +140,7 @@ class ClawIQClient {
         searchParams.set('limit', backendLimit.toString());
         const query = searchParams.toString();
         const raw = await this.request('GET', `/v1/errors${query ? `?${query}` : ''}`);
-        let filtered = raw.errors;
+        let filtered = raw.errors ?? [];
         if (params.channel) {
             filtered = filtered.filter((item) => item.channel === params.channel);
         }

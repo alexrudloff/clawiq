@@ -74,7 +74,7 @@ function buildAllCommand(): Command {
           fetchMarkers(client, options, range.start, range.end),
         ]);
 
-        const traceItems: TimelineItem[] = traceResult.traces.map((trace: TraceRecord) => ({
+        const traceItems: TimelineItem[] = (traceResult.traces ?? []).map((trace: TraceRecord) => ({
           kind: 'trace',
           timestamp: trace.start_time,
           summary: `${simplifyStatus(trace.status)} ${trace.model || '-'} ${Math.round(trace.duration_ms)}ms`,
@@ -84,7 +84,7 @@ function buildAllCommand(): Command {
           agent: trace.agent_id || (trace.session_id ? getAgentFromSession(trace.session_id) : undefined),
         }));
 
-        const errorItems: TimelineItem[] = errorResult.errors.map((error: ErrorRecord) => ({
+        const errorItems: TimelineItem[] = (errorResult.errors ?? []).map((error: ErrorRecord) => ({
           kind: 'error',
           timestamp: error.timestamp,
           summary: `${error.error_type}${error.message ? `: ${error.message}` : ''}`,
