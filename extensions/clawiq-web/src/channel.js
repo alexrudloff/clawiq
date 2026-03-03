@@ -293,42 +293,13 @@ async function runAgentViaCli(account, message) {
 }
 
 async function deliverInboundMessage(ctx, account, message) {
-  const runtime = getClawiqWebRuntime();
-  const inboundHandler = runtime?.channel?.reply?.handleInboundMessage;
-  if (typeof inboundHandler !== "function") {
-    await runAgentViaCli(account, message);
-    updateRuntimeStatus(ctx, {
-      lastOutboundAt: Date.now(),
-      lastError: null,
-    });
-    return;
-  }
-
-  let replied = false;
-  await inboundHandler({
-    channel: CHANNEL_ID,
-    accountId: account.accountId,
-    senderId: `clawiq:${message.conversationId}`,
-    chatType: "direct",
-    chatId: message.conversationId,
-    text: message.content,
-    reply: async (replyText) => {
-      const content = asString(replyText);
-      if (!content) {
-        return;
-      }
-      replied = true;
-      await postAssistantReply(account, message, content);
-      updateRuntimeStatus(ctx, {
-        lastOutboundAt: Date.now(),
-        lastError: null,
-      });
-    },
+  // Always route through explicit `openclaw agent --session-id` so each
+  // ClawIQ conversation maps to a dedicated OpenClaw session context.
+  await runAgentViaCli(account, message);
+  updateRuntimeStatus(ctx, {
+    lastOutboundAt: Date.now(),
+    lastError: null,
   });
-
-  if (!replied) {
-    await markInboundFailed(account, message.id, "No assistant response");
-  }
 }
 
 async function startMonitorLoop(ctx) {
