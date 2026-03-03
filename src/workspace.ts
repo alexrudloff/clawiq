@@ -91,6 +91,24 @@ Types: task, output, correction, error, feedback, health, note
 
 Common flags: \`--agent <id>\`, \`--severity <level>\`, \`--quality-tags <tags>\`, \`-q\` (quiet)
 
+**Emit at task completion — as a reflex, not an afterthought.**
+
+\`\`\`bash
+# Task completed successfully
+clawiq emit task "<task-name>" --agent <id> --action-tags "completed" -q
+# Task failed or required correction
+clawiq emit task "<task-name>" --agent <id> --action-tags "failed" --quality-tags "user-corrected" -q
+# Unexpected observation
+clawiq emit note "<observation>" --agent <id> --severity low -q
+# Something broke
+clawiq emit error "<what-broke>" --agent <id> --severity medium -q
+\`\`\`
+
+Tag categories:
+- \`--action-tags\` — free-form outcome tags: \`completed\`, \`failed\`, \`delegated\`, \`skipped\`
+- \`--quality-tags\` — problem flags only: \`hallucination\`, \`wrong-recipient\`, \`wrong-data\`, \`self-corrected\`, \`user-corrected\`, \`retry\`, \`fallback\`, \`slow\`, \`started\`
+- \`--domain-tags\` — free-form topic tags: \`clawiq\`, \`family\`, \`consulting\`, etc.
+
 ### Pull
 \`\`\`bash
 clawiq pull all --since 24h        # unified timeline
