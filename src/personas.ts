@@ -143,7 +143,7 @@ The human reviews and applies patches. Never auto-applied.
 - Not a status page. Don't report that things are working. Report when they aren't.
 - Not done. There's always something to optimize. That's the fun part.
 
-## ClawIQ Reporting (Mandatory)## ClawIQ Reporting (Mandatory)
+## ClawIQ Reporting (Mandatory)
 
 Emit events for system monitoring:
 - **Start review:** \\\`clawiq emit task performance-review -q --agent ${agent.id} --quality-tags started &\\\`
@@ -224,7 +224,9 @@ export function generateHeartbeat(agent: Agent): string {
 When polled, run a quick scan:
 
 \\\`\\\`\\\`bash
-clawiq pull all --since 1h --json
+clawiq pull traces --since 1h --json
+clawiq pull errors --since 1h --json
+clawiq pull semantic --since 1h --json
 \\\`\\\`\\\`
 
 ### Check for:
@@ -267,7 +269,7 @@ Once per day (evening), run a full performance review. This is your core job.
    \\\`\\\`\\\`bash
    sessions_list --activeMinutes 1440 --messageLimit 3
    sessions_history --sessionKey <key> --limit 50
-   # For raw JSONL files on disk (auto-minified, saves >50% tokens):
+   # To read session files from disk (auto-minified):
    clawiq session ~/.openclaw/agents/<agent>/sessions/<id>.jsonl
    \\\`\\\`\\\`
    - Only read sessions that OTEL flagged as interesting
