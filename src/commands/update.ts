@@ -17,6 +17,7 @@ import {
 import { configureClawiqWebChannel } from '../openclaw_service.js';
 import { ensureClawiqWebPluginInstalled } from '../utils/clawiq-web-plugin.js';
 import { ensureOtelPluginDeps } from '../utils/otel-plugin.js';
+import { syncOpenClawDocs } from '../utils/openclaw-docs-sync.js';
 
 // __dirname works in CommonJS
 
@@ -93,6 +94,19 @@ export function createUpdateCommand(): Command {
       }
 
       console.log(chalk.dim(`\nPreserved: ${preserved.join(', ')}`));
+
+      // Step 2b: Refresh OpenClaw docs mirror in Lenny memory
+      const docsSpinner = ora('Refreshing OpenClaw docs mirror in memory/...').start();
+      try {
+        const docs = await syncOpenClawDocs(join(workspaceDir, 'memory'));
+        if (docs.failed === 0) {
+          docsSpinner.succeed(`OpenClaw docs refreshed (${docs.downloaded} files)`);
+        } else {
+          docsSpinner.warn(`OpenClaw docs partially refreshed (${docs.downloaded}/${docs.totalReferenced}, ${docs.failed} failed)`);
+        }
+      } catch (err) {
+        docsSpinner.warn(`Could not refresh OpenClaw docs: ${(err as Error).message}`);
+      }
 
       // Ensure diagnostics-otel plugin deps are installed
       await ensureOtelPluginDeps();

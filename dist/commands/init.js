@@ -8,6 +8,7 @@ const commander_1 = require("commander");
 const chalk_1 = __importDefault(require("chalk"));
 const ora_1 = __importDefault(require("ora"));
 const child_process_1 = require("child_process");
+const path_1 = require("path");
 const config_js_1 = require("../config.js");
 const api_js_1 = require("../api.js");
 const format_js_1 = require("../format.js");
@@ -18,6 +19,7 @@ const cli_js_1 = require("../cli.js");
 const openclaw_service_js_1 = require("../openclaw_service.js");
 const otel_plugin_js_1 = require("../utils/otel-plugin.js");
 const clawiq_web_plugin_js_1 = require("../utils/clawiq-web-plugin.js");
+const openclaw_docs_sync_js_1 = require("../utils/openclaw-docs-sync.js");
 function createInitCommand() {
     const cmd = new commander_1.Command('init')
         .description('Set up ClawIQ agent, OTEL diagnostics, and agent workspaces')
@@ -179,6 +181,22 @@ function createInitCommand() {
                 const wsSpinner = (0, ora_1.default)(`Creating ${personas_js_1.CLAWIQ_AGENT.name} workspace...`).start();
                 (0, workspace_js_1.createWorkspace)(personas_js_1.CLAWIQ_AGENT);
                 wsSpinner.succeed(`Workspace created: ~/.openclaw/workspace-${agentId}/`);
+            }
+            const lennyWorkspaceDir = (0, path_1.join)(openclaw_js_1.OPENCLAW_DIR, `workspace-${agentId}`);
+            // ── [4b] Mirror OpenClaw docs into Lenny memory ─────────
+            const docsSpinner = (0, ora_1.default)('Syncing OpenClaw docs into Lenny memory...').start();
+            try {
+                const docs = await (0, openclaw_docs_sync_js_1.syncOpenClawDocs)((0, path_1.join)(lennyWorkspaceDir, 'memory'));
+                if (docs.failed === 0) {
+                    docsSpinner.succeed(`OpenClaw docs synced (${docs.downloaded} files)`);
+                }
+                else {
+                    docsSpinner.warn(`OpenClaw docs partially synced (${docs.downloaded}/${docs.totalReferenced}, ${docs.failed} failed)`);
+                }
+            }
+            catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                docsSpinner.warn(`Could not sync OpenClaw docs: ${msg}`);
             }
             // ── [5] Register agent in openclaw.json ──────────────────
             const workspacePath = `~/.openclaw/workspace-${agentId}`;

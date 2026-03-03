@@ -379,6 +379,9 @@ Key paths:
 - \\\`~/.openclaw/workspace-{agent}/TOOLS.md\\\` — Agent capabilities
 - \\\`~/.openclaw/workspace-{agent}/MEMORY.md\\\` — Agent long-term memory
 - \\\`~/.openclaw/workspace-{agent}/memory/\\\` — Agent daily notes
+- \\\`~/.openclaw/workspace-clawiq/memory/openclaw-docs/\\\` — Local mirror of OpenClaw docs from \\\`https://docs.openclaw.ai/llms.txt\\\` (refreshed on \\\`clawiq init\\\` and \\\`clawiq update\\\`)
+
+Use the local docs mirror first when you need OpenClaw documentation context, then fall back to web search for anything missing or newly published.
 
 ### web_search
 Search the web for context on patterns you find. Use this actively, not as a last resort.

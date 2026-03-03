@@ -2,16 +2,18 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import { execFile } from 'child_process';
+import { join } from 'path';
 import { loadConfig, saveConfig, ClawIQConfig, API_ENDPOINT, CLI_VERSION } from '../config.js';
 import { ClawIQClient } from '../api.js';
 import { handleError } from '../format.js';
-import { loadOpenClawConfig, saveOpenClawConfig, backupOpenClawConfig } from '../openclaw.js';
+import { loadOpenClawConfig, saveOpenClawConfig, backupOpenClawConfig, OPENCLAW_DIR } from '../openclaw.js';
 import { CLAWIQ_AGENT } from '../personas.js';
 import { createWorkspace, discoverWorkspaces, workspaceExists, appendClawiqTools, installClawiqSkill } from '../workspace.js';
 import { prompt, confirm } from '../cli.js';
 import { configureClawiqWebChannel, configureOtelDiagnostics, ensureDiagnosticsPlugin, upsertAgent } from '../openclaw_service.js';
 import { ensureOtelPluginDeps } from '../utils/otel-plugin.js';
 import { ensureClawiqWebPluginInstalled } from '../utils/clawiq-web-plugin.js';
+import { syncOpenClawDocs } from '../utils/openclaw-docs-sync.js';
 
 export function createInitCommand(): Command {
   const cmd = new Command('init')
@@ -173,6 +175,21 @@ export function createInitCommand(): Command {
           const wsSpinner = ora(`Creating ${CLAWIQ_AGENT.name} workspace...`).start();
           createWorkspace(CLAWIQ_AGENT);
           wsSpinner.succeed(`Workspace created: ~/.openclaw/workspace-${agentId}/`);
+        }
+        const lennyWorkspaceDir = join(OPENCLAW_DIR, `workspace-${agentId}`);
+
+        // ── [4b] Mirror OpenClaw docs into Lenny memory ─────────
+        const docsSpinner = ora('Syncing OpenClaw docs into Lenny memory...').start();
+        try {
+          const docs = await syncOpenClawDocs(join(lennyWorkspaceDir, 'memory'));
+          if (docs.failed === 0) {
+            docsSpinner.succeed(`OpenClaw docs synced (${docs.downloaded} files)`);
+          } else {
+            docsSpinner.warn(`OpenClaw docs partially synced (${docs.downloaded}/${docs.totalReferenced}, ${docs.failed} failed)`);
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          docsSpinner.warn(`Could not sync OpenClaw docs: ${msg}`);
         }
 
         // ── [5] Register agent in openclaw.json ──────────────────

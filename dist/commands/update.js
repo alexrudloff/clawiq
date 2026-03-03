@@ -16,6 +16,7 @@ const personas_js_1 = require("../personas.js");
 const openclaw_service_js_1 = require("../openclaw_service.js");
 const clawiq_web_plugin_js_1 = require("../utils/clawiq-web-plugin.js");
 const otel_plugin_js_1 = require("../utils/otel-plugin.js");
+const openclaw_docs_sync_js_1 = require("../utils/openclaw-docs-sync.js");
 // __dirname works in CommonJS
 function run(cmd, args, cwd) {
     return new Promise((resolve, reject) => {
@@ -83,6 +84,20 @@ function createUpdateCommand() {
             }
         }
         console.log(chalk_1.default.dim(`\nPreserved: ${preserved.join(', ')}`));
+        // Step 2b: Refresh OpenClaw docs mirror in Lenny memory
+        const docsSpinner = (0, ora_1.default)('Refreshing OpenClaw docs mirror in memory/...').start();
+        try {
+            const docs = await (0, openclaw_docs_sync_js_1.syncOpenClawDocs)((0, path_1.join)(workspaceDir, 'memory'));
+            if (docs.failed === 0) {
+                docsSpinner.succeed(`OpenClaw docs refreshed (${docs.downloaded} files)`);
+            }
+            else {
+                docsSpinner.warn(`OpenClaw docs partially refreshed (${docs.downloaded}/${docs.totalReferenced}, ${docs.failed} failed)`);
+            }
+        }
+        catch (err) {
+            docsSpinner.warn(`Could not refresh OpenClaw docs: ${err.message}`);
+        }
         // Ensure diagnostics-otel plugin deps are installed
         await (0, otel_plugin_js_1.ensureOtelPluginDeps)();
         // Ensure clawiq-web plugin is installed and configured
