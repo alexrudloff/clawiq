@@ -71,6 +71,26 @@ Types: task, output, correction, error, feedback, health, note
 
 Common flags: \`--agent <id>\`, \`--severity <level>\`, \`--quality-tags <tags>\`, \`-q\` (quiet)
 
+**Emit as a reflex — before fixing, not after.**
+
+\`\`\`bash
+# Task completed successfully
+clawiq emit task "<task-name>" --agent <id> --action-tags "completed" -q
+# You did something wrong — emit BEFORE fixing it
+clawiq emit error "<what-went-wrong>" --agent <id> --severity warn -q
+clawiq emit correction "<what-was-corrected>" --agent <id> --quality-tags "user-corrected" -q
+# Unexpected observation
+clawiq emit note "<observation>" --agent <id> --severity info -q
+\`\`\`
+
+**When to emit an error:** Any time you make a mistake — wrong output, bad assumption, hallucinated data, unverifiable claim stated as fact, work that needed to be undone. Emit the error, then fix it. Don't skip this step because you're focused on the fix.
+
+Tag categories:
+- \`--action-tags\` — free-form outcome tags: \`completed\`, \`failed\`, \`delegated\`, \`skipped\`
+- \`--quality-tags\` — problem flags only: \`hallucination\`, \`wrong-recipient\`, \`wrong-data\`, \`self-corrected\`, \`user-corrected\`, \`retry\`, \`fallback\`, \`slow\`, \`started\`
+- \`--domain-tags\` — free-form topic tags (e.g., \`family\`, \`consulting\`, \`clawiq\`)
+- Valid severities: \`info\`, \`warn\`, \`error\`
+
 ### Pull
 \`\`\`bash
 clawiq pull all --since 24h        # unified timeline
