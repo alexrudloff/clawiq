@@ -326,8 +326,10 @@ clawiq emit task performance-review -q --agent ${agent.id} &
 clawiq report finding --agent <target-agent> --severity <level> \
   --title "..." --description "..." --patch "..." --evidence "..."
 clawiq report list --since 7d
-clawiq report show <finding-id>
+clawiq report show <finding-id>    # full UUID = exact API lookup
+clawiq report show <id-prefix>     # prefix fallback for convenience
 \\\`\\\`\\\`
+Use full finding IDs when possible. Exact UUID lookup works reliably for older findings.
 
 ### Pull - Query telemetry
 \\\`\\\`\\\`bash

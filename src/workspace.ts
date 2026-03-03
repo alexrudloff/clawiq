@@ -111,8 +111,10 @@ clawiq tags                        # list all tags
 \`\`\`bash
 clawiq report finding --agent <id> --severity <low|medium|high|critical> --title "..." [options]
 clawiq report list --since 7d      # list recent findings
-clawiq report show <finding-id>    # show finding details
+clawiq report show <finding-id>    # full UUID = exact API lookup
+clawiq report show <id-prefix>     # prefix fallback for convenience
 \`\`\`
+Use full finding IDs when possible. Exact UUID lookup works reliably for older findings.
 
 Common flags: \`--agent <id>\`, \`--severity <level>\`, \`--json\`, \`-q\` (quiet)
 ${CLAWIQ_TOOLS_END_MARKER}
