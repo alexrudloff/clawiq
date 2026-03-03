@@ -5,6 +5,7 @@ export declare function upsertAgent(config: OpenClawConfig, agentId: string, wor
     added: boolean;
     updated: boolean;
 };
+export declare function configureClawiqWebChannel(config: OpenClawConfig, endpoint: string, apiKey: string, agentId: string): boolean;
 export declare function removeClawiqConfig(config: OpenClawConfig, endpoint: string, agentId: string): {
     removedOtel: boolean;
     removedAgent: boolean;

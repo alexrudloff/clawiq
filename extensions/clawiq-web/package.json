@@ -1,0 +1,12 @@
+{
+  "name": "@clawiq/openclaw-clawiq-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ClawIQ web chat channel plugin for OpenClaw",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  }
+}

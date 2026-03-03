@@ -3,7 +3,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.configureOtelDiagnostics = configureOtelDiagnostics;
 exports.ensureDiagnosticsPlugin = ensureDiagnosticsPlugin;
 exports.upsertAgent = upsertAgent;
+exports.configureClawiqWebChannel = configureClawiqWebChannel;
 exports.removeClawiqConfig = removeClawiqConfig;
+const path_1 = require("path");
+const openclaw_js_1 = require("./openclaw.js");
+const CLAWIQ_WEB_PLUGIN_ID = 'clawiq-web';
+const CLAWIQ_WEB_EXTENSION_PATH = (0, path_1.join)(openclaw_js_1.OPENCLAW_DIR, 'extensions', CLAWIQ_WEB_PLUGIN_ID);
 function configureOtelDiagnostics(config, apiKey, endpoint) {
     if (!config.diagnostics) {
         config.diagnostics = {};
@@ -53,6 +58,67 @@ function upsertAgent(config, agentId, workspacePath) {
     }
     return { added: false, updated: false };
 }
+function configureClawiqWebChannel(config, endpoint, apiKey, agentId) {
+    let changed = false;
+    if (!config.plugins) {
+        config.plugins = {};
+        changed = true;
+    }
+    if (!config.plugins.entries) {
+        config.plugins.entries = {};
+        changed = true;
+    }
+    if (!config.plugins.entries[CLAWIQ_WEB_PLUGIN_ID]?.enabled) {
+        config.plugins.entries[CLAWIQ_WEB_PLUGIN_ID] = { enabled: true };
+        changed = true;
+    }
+    if (!config.plugins.load) {
+        config.plugins.load = {};
+        changed = true;
+    }
+    if (!Array.isArray(config.plugins.load.paths)) {
+        config.plugins.load.paths = [];
+        changed = true;
+    }
+    if (!config.plugins.load.paths.includes(CLAWIQ_WEB_EXTENSION_PATH)) {
+        config.plugins.load.paths.push(CLAWIQ_WEB_EXTENSION_PATH);
+        changed = true;
+    }
+    if (!config.channels) {
+        config.channels = {};
+        changed = true;
+    }
+    const existingChannel = config.channels[CLAWIQ_WEB_PLUGIN_ID] ?? {};
+    const desiredChannel = {
+        ...existingChannel,
+        enabled: true,
+        apiBaseUrl: endpoint,
+        apiKey,
+        agentId,
+        pollIntervalMs: 2500,
+    };
+    if (!channelConfigEquals(existingChannel, desiredChannel)) {
+        config.channels[CLAWIQ_WEB_PLUGIN_ID] = desiredChannel;
+        changed = true;
+    }
+    if (!Array.isArray(config.bindings)) {
+        config.bindings = [];
+        changed = true;
+    }
+    const existingBinding = config.bindings.find((binding) => binding.match?.channel === CLAWIQ_WEB_PLUGIN_ID);
+    if (!existingBinding) {
+        config.bindings.push({
+            agentId,
+            match: { channel: CLAWIQ_WEB_PLUGIN_ID },
+        });
+        changed = true;
+    }
+    else if (existingBinding.agentId !== agentId) {
+        existingBinding.agentId = agentId;
+        changed = true;
+    }
+    return changed;
+}
 function removeClawiqConfig(config, endpoint, agentId) {
     let removedOtel = false;
     let removedAgent = false;
@@ -75,11 +141,32 @@ function removeClawiqConfig(config, endpoint, agentId) {
             disabledPlugin = true;
         }
     }
+    const channels = config.channels;
+    if (channels && channels[CLAWIQ_WEB_PLUGIN_ID]) {
+        delete channels[CLAWIQ_WEB_PLUGIN_ID];
+    }
+    if (config.plugins?.load?.paths) {
+        config.plugins.load.paths = config.plugins.load.paths.filter((p) => p !== CLAWIQ_WEB_EXTENSION_PATH);
+    }
+    if (config.plugins?.entries?.[CLAWIQ_WEB_PLUGIN_ID]?.enabled) {
+        config.plugins.entries[CLAWIQ_WEB_PLUGIN_ID].enabled = false;
+        disabledPlugin = true;
+    }
+    if (Array.isArray(config.bindings)) {
+        config.bindings = config.bindings.filter((binding) => binding.match?.channel !== CLAWIQ_WEB_PLUGIN_ID);
+    }
     if (config.agents?.list) {
         const originalLength = config.agents.list.length;
         config.agents.list = config.agents.list.filter((agent) => agent.id !== agentId);
         removedAgent = config.agents.list.length !== originalLength;
     }
     return { removedOtel, removedAgent, disabledPlugin };
+}
+function channelConfigEquals(a, b) {
+    return (a.enabled === b.enabled &&
+        a.apiBaseUrl === b.apiBaseUrl &&
+        a.apiKey === b.apiKey &&
+        a.agentId === b.agentId &&
+        a.pollIntervalMs === b.pollIntervalMs);
 }
 //# sourceMappingURL=openclaw_service.js.map

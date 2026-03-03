@@ -9,8 +9,9 @@ import { loadOpenClawConfig, saveOpenClawConfig, backupOpenClawConfig } from '..
 import { CLAWIQ_AGENT } from '../personas.js';
 import { createWorkspace, discoverWorkspaces, workspaceExists, appendClawiqTools, installClawiqSkill } from '../workspace.js';
 import { prompt, confirm } from '../cli.js';
-import { configureOtelDiagnostics, ensureDiagnosticsPlugin, upsertAgent } from '../openclaw_service.js';
+import { configureClawiqWebChannel, configureOtelDiagnostics, ensureDiagnosticsPlugin, upsertAgent } from '../openclaw_service.js';
 import { ensureOtelPluginDeps } from '../utils/otel-plugin.js';
+import { ensureClawiqWebPluginInstalled } from '../utils/clawiq-web-plugin.js';
 
 export function createInitCommand(): Command {
   const cmd = new Command('init')
@@ -45,6 +46,7 @@ export function createInitCommand(): Command {
           }
         }
         config.apiKey = apiKey;
+        const agentId = CLAWIQ_AGENT.id;
 
         // Validate API key
         const spinner = ora('Validating API key...').start();
@@ -140,9 +142,20 @@ export function createInitCommand(): Command {
           otelSpinner.warn('Could not verify OTEL dependencies. If traces are missing, run: npm install @opentelemetry/api @opentelemetry/exporter-logs-otlp-http @opentelemetry/exporter-trace-otlp-http @opentelemetry/exporter-metrics-otlp-http @opentelemetry/sdk-node @opentelemetry/sdk-trace-node @opentelemetry/sdk-logs @opentelemetry/sdk-metrics @opentelemetry/resources @opentelemetry/semantic-conventions in your OpenClaw install directory');
         }
 
-        // ── [4] Create ClawIQ agent workspace ────────────────────
-        const agentId = CLAWIQ_AGENT.id;
+        // ── [3d] Install clawiq-web channel plugin bundle ───────
+        const pluginInstall = ensureClawiqWebPluginInstalled();
+        if (pluginInstall.installed) {
+          console.log(chalk.green('\u2713') + ` clawiq-web plugin installed at ${pluginInstall.targetDir}`);
+        } else {
+          console.log(chalk.yellow('!') + ` clawiq-web plugin install skipped: ${pluginInstall.error}`);
+        }
 
+        // ── [3e] Configure clawiq-web channel in openclaw.json ──
+        if (configureClawiqWebChannel(openclawConfig, API_ENDPOINT, apiKey, agentId)) {
+          console.log(chalk.green('\u2713') + ' clawiq-web channel configured');
+        }
+
+        // ── [4] Create ClawIQ agent workspace ────────────────────
         if (workspaceExists(agentId)) {
           if (!options.nonInteractive) {
             const overwrite = await confirm(

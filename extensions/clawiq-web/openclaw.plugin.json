@@ -1,0 +1,9 @@
+{
+  "id": "clawiq-web",
+  "channels": ["clawiq-web"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

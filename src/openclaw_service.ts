@@ -1,4 +1,8 @@
-import { OpenClawConfig } from './openclaw.js';
+import { join } from 'path';
+import { OpenClawBinding, OpenClawConfig, OPENCLAW_DIR } from './openclaw.js';
+
+const CLAWIQ_WEB_PLUGIN_ID = 'clawiq-web';
+const CLAWIQ_WEB_EXTENSION_PATH = join(OPENCLAW_DIR, 'extensions', CLAWIQ_WEB_PLUGIN_ID);
 
 export function configureOtelDiagnostics(config: OpenClawConfig, apiKey: string, endpoint: string): void {
   if (!config.diagnostics) {
@@ -62,6 +66,80 @@ export function upsertAgent(
   return { added: false, updated: false };
 }
 
+export function configureClawiqWebChannel(
+  config: OpenClawConfig,
+  endpoint: string,
+  apiKey: string,
+  agentId: string
+): boolean {
+  let changed = false;
+
+  if (!config.plugins) {
+    config.plugins = {};
+    changed = true;
+  }
+  if (!config.plugins.entries) {
+    config.plugins.entries = {};
+    changed = true;
+  }
+  if (!config.plugins.entries[CLAWIQ_WEB_PLUGIN_ID]?.enabled) {
+    config.plugins.entries[CLAWIQ_WEB_PLUGIN_ID] = { enabled: true };
+    changed = true;
+  }
+
+  if (!config.plugins.load) {
+    config.plugins.load = {};
+    changed = true;
+  }
+  if (!Array.isArray(config.plugins.load.paths)) {
+    config.plugins.load.paths = [];
+    changed = true;
+  }
+  if (!config.plugins.load.paths.includes(CLAWIQ_WEB_EXTENSION_PATH)) {
+    config.plugins.load.paths.push(CLAWIQ_WEB_EXTENSION_PATH);
+    changed = true;
+  }
+
+  if (!config.channels) {
+    config.channels = {};
+    changed = true;
+  }
+
+  const existingChannel = config.channels[CLAWIQ_WEB_PLUGIN_ID] ?? {};
+  const desiredChannel = {
+    ...existingChannel,
+    enabled: true,
+    apiBaseUrl: endpoint,
+    apiKey,
+    agentId,
+    pollIntervalMs: 2500,
+  };
+
+  if (!channelConfigEquals(existingChannel, desiredChannel)) {
+    config.channels[CLAWIQ_WEB_PLUGIN_ID] = desiredChannel;
+    changed = true;
+  }
+
+  if (!Array.isArray(config.bindings)) {
+    config.bindings = [];
+    changed = true;
+  }
+
+  const existingBinding = config.bindings.find((binding) => binding.match?.channel === CLAWIQ_WEB_PLUGIN_ID);
+  if (!existingBinding) {
+    config.bindings.push({
+      agentId,
+      match: { channel: CLAWIQ_WEB_PLUGIN_ID },
+    } as OpenClawBinding);
+    changed = true;
+  } else if (existingBinding.agentId !== agentId) {
+    existingBinding.agentId = agentId;
+    changed = true;
+  }
+
+  return changed;
+}
+
 export function removeClawiqConfig(
   config: OpenClawConfig,
   endpoint: string,
@@ -91,6 +169,24 @@ export function removeClawiqConfig(
     }
   }
 
+  const channels = config.channels;
+  if (channels && channels[CLAWIQ_WEB_PLUGIN_ID]) {
+    delete channels[CLAWIQ_WEB_PLUGIN_ID];
+  }
+
+  if (config.plugins?.load?.paths) {
+    config.plugins.load.paths = config.plugins.load.paths.filter((p) => p !== CLAWIQ_WEB_EXTENSION_PATH);
+  }
+
+  if (config.plugins?.entries?.[CLAWIQ_WEB_PLUGIN_ID]?.enabled) {
+    config.plugins.entries[CLAWIQ_WEB_PLUGIN_ID].enabled = false;
+    disabledPlugin = true;
+  }
+
+  if (Array.isArray(config.bindings)) {
+    config.bindings = config.bindings.filter((binding) => binding.match?.channel !== CLAWIQ_WEB_PLUGIN_ID);
+  }
+
   if (config.agents?.list) {
     const originalLength = config.agents.list.length;
     config.agents.list = config.agents.list.filter((agent) => agent.id !== agentId);
@@ -98,4 +194,14 @@ export function removeClawiqConfig(
   }
 
   return { removedOtel, removedAgent, disabledPlugin };
+}
+
+function channelConfigEquals(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  return (
+    a.enabled === b.enabled &&
+    a.apiBaseUrl === b.apiBaseUrl &&
+    a.apiKey === b.apiKey &&
+    a.agentId === b.agentId &&
+    a.pollIntervalMs === b.pollIntervalMs
+  );
 }

@@ -11,6 +11,15 @@ export interface OpenClawAgent {
   model?: { primary: string };
 }
 
+export interface OpenClawBinding {
+  agentId?: string;
+  match?: {
+    channel?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
 export interface OpenClawConfig {
   [key: string]: unknown;
   diagnostics?: {
@@ -25,12 +34,17 @@ export interface OpenClawConfig {
     };
   };
   plugins?: {
-    entries?: Record<string, { enabled?: boolean }>;
+    load?: {
+      paths?: string[];
+    };
+    entries?: Record<string, { enabled?: boolean; config?: Record<string, unknown> }>;
   };
   agents?: {
     defaults?: Record<string, unknown>;
     list?: OpenClawAgent[];
   };
+  channels?: Record<string, Record<string, unknown>>;
+  bindings?: OpenClawBinding[];
 }
 
 export function loadOpenClawConfig(): OpenClawConfig {

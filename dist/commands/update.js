@@ -10,8 +10,11 @@ const ora_1 = __importDefault(require("ora"));
 const path_1 = require("path");
 const fs_1 = require("fs");
 const child_process_1 = require("child_process");
+const config_js_1 = require("../config.js");
 const openclaw_js_1 = require("../openclaw.js");
 const personas_js_1 = require("../personas.js");
+const openclaw_service_js_1 = require("../openclaw_service.js");
+const clawiq_web_plugin_js_1 = require("../utils/clawiq-web-plugin.js");
 const otel_plugin_js_1 = require("../utils/otel-plugin.js");
 // __dirname works in CommonJS
 function run(cmd, args, cwd) {
@@ -82,6 +85,33 @@ function createUpdateCommand() {
         console.log(chalk_1.default.dim(`\nPreserved: ${preserved.join(', ')}`));
         // Ensure diagnostics-otel plugin deps are installed
         await (0, otel_plugin_js_1.ensureOtelPluginDeps)();
+        // Ensure clawiq-web plugin is installed and configured
+        const pluginInstall = (0, clawiq_web_plugin_js_1.ensureClawiqWebPluginInstalled)();
+        if (pluginInstall.installed) {
+            console.log(chalk_1.default.green('\u2713') + ` clawiq-web plugin installed at ${pluginInstall.targetDir}`);
+        }
+        else {
+            console.log(chalk_1.default.yellow('!') + ` clawiq-web plugin install skipped: ${pluginInstall.error}`);
+        }
+        const clawiqConfig = (0, config_js_1.loadConfig)();
+        if (clawiqConfig.apiKey) {
+            const openclawConfig = (0, openclaw_js_1.loadOpenClawConfig)();
+            if ((0, openclaw_service_js_1.configureClawiqWebChannel)(openclawConfig, config_js_1.API_ENDPOINT, clawiqConfig.apiKey, agentId)) {
+                (0, openclaw_js_1.saveOpenClawConfig)(openclawConfig);
+                console.log(chalk_1.default.green('\u2713') + ' clawiq-web channel configuration refreshed');
+            }
+        }
+        else {
+            console.log(chalk_1.default.yellow('!') + ' No ClawIQ API key found; skipping clawiq-web channel config refresh');
+        }
+        const restartSpinner = (0, ora_1.default)('Restarting OpenClaw gateway...').start();
+        try {
+            await run('openclaw', ['gateway', 'restart'], process.cwd());
+            restartSpinner.succeed('OpenClaw gateway restarted');
+        }
+        catch (err) {
+            restartSpinner.warn(`Could not restart gateway automatically: ${err.message}`);
+        }
         console.log(chalk_1.default.bold(`\n🦞 ${personas_js_1.CLAWIQ_AGENT.name} updated. Claws sharpened.\n`));
     });
     return cmd;

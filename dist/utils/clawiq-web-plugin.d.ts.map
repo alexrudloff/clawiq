@@ -1,0 +1,1 @@
+{"version":3,"file":"clawiq-web-plugin.d.ts","sourceRoot":"","sources":["../../src/utils/clawiq-web-plugin.ts"],"names":[],"mappings":"AAMA,MAAM,WAAW,4BAA4B;IAC3C,SAAS,EAAE,OAAO,CAAC;IACnB,SAAS,EAAE,MAAM,CAAC;IAClB,SAAS,CAAC,EAAE,MAAM,CAAC;IACnB,KAAK,CAAC,EAAE,MAAM,CAAC;CAChB;AAED,wBAAgB,8BAA8B,IAAI,4BAA4B,CA6B7E"}

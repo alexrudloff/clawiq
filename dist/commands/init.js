@@ -17,6 +17,7 @@ const workspace_js_1 = require("../workspace.js");
 const cli_js_1 = require("../cli.js");
 const openclaw_service_js_1 = require("../openclaw_service.js");
 const otel_plugin_js_1 = require("../utils/otel-plugin.js");
+const clawiq_web_plugin_js_1 = require("../utils/clawiq-web-plugin.js");
 function createInitCommand() {
     const cmd = new commander_1.Command('init')
         .description('Set up ClawIQ agent, OTEL diagnostics, and agent workspaces')
@@ -47,6 +48,7 @@ function createInitCommand() {
                 }
             }
             config.apiKey = apiKey;
+            const agentId = personas_js_1.CLAWIQ_AGENT.id;
             // Validate API key
             const spinner = (0, ora_1.default)('Validating API key...').start();
             const client = new api_js_1.ClawIQClient(config_js_1.API_ENDPOINT, apiKey, config_js_1.CLI_VERSION);
@@ -147,8 +149,19 @@ function createInitCommand() {
             catch (err) {
                 otelSpinner.warn('Could not verify OTEL dependencies. If traces are missing, run: npm install @opentelemetry/api @opentelemetry/exporter-logs-otlp-http @opentelemetry/exporter-trace-otlp-http @opentelemetry/exporter-metrics-otlp-http @opentelemetry/sdk-node @opentelemetry/sdk-trace-node @opentelemetry/sdk-logs @opentelemetry/sdk-metrics @opentelemetry/resources @opentelemetry/semantic-conventions in your OpenClaw install directory');
             }
+            // ── [3d] Install clawiq-web channel plugin bundle ───────
+            const pluginInstall = (0, clawiq_web_plugin_js_1.ensureClawiqWebPluginInstalled)();
+            if (pluginInstall.installed) {
+                console.log(chalk_1.default.green('\u2713') + ` clawiq-web plugin installed at ${pluginInstall.targetDir}`);
+            }
+            else {
+                console.log(chalk_1.default.yellow('!') + ` clawiq-web plugin install skipped: ${pluginInstall.error}`);
+            }
+            // ── [3e] Configure clawiq-web channel in openclaw.json ──
+            if ((0, openclaw_service_js_1.configureClawiqWebChannel)(openclawConfig, config_js_1.API_ENDPOINT, apiKey, agentId)) {
+                console.log(chalk_1.default.green('\u2713') + ' clawiq-web channel configured');
+            }
             // ── [4] Create ClawIQ agent workspace ────────────────────
-            const agentId = personas_js_1.CLAWIQ_AGENT.id;
             if ((0, workspace_js_1.workspaceExists)(agentId)) {
                 if (!options.nonInteractive) {
                     const overwrite = await (0, cli_js_1.confirm)(chalk_1.default.yellow(`\nWorkspace for ${personas_js_1.CLAWIQ_AGENT.name} already exists. Overwrite? (y/N): `));
