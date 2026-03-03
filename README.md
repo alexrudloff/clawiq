@@ -1,6 +1,8 @@
 # ClawIQ
 
-Agent intelligence for [OpenClaw](https://github.com/alexrudloff/openclaw). Understand what your agents actually do — not just what they cost.
+Agent intelligence for [OpenClaw](https://github.com/alexrudloff/openclaw). 
+
+"Self improvement as a Service"
 
 ## What is ClawIQ?
 
