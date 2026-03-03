@@ -74,9 +74,11 @@ export function workspaceExists(agentId: string): boolean {
   return existsSync(join(OPENCLAW_DIR, `workspace-${agentId}`));
 }
 
-const CLAWIQ_TOOLS_HEADER = '## ClawIQ CLI';
+const CLAWIQ_TOOLS_MARKER = '<!-- clawiq-tools -->';
+const CLAWIQ_TOOLS_END_MARKER = '<!-- /clawiq-tools -->';
 
 const CLAWIQ_TOOLS_SECTION = `
+${CLAWIQ_TOOLS_MARKER}
 ## ClawIQ CLI
 
 Report and query semantic events, traces, and errors.
@@ -133,6 +135,7 @@ clawiq report show <id-prefix>     # prefix fallback for convenience
 Use full finding IDs when possible. Exact UUID lookup works reliably for older findings.
 
 Common flags: \`--agent <id>\`, \`--impact <level>\`, \`--json\`, \`-q\` (quiet)
+${CLAWIQ_TOOLS_END_MARKER}
 `;
 
 const SHARED_SKILLS_DIR = join(OPENCLAW_DIR, 'workspace', 'skills');
@@ -274,7 +277,7 @@ export function appendClawiqTools(workspacePath: string): boolean {
   }
 
   const existing = readFileSync(toolsPath, 'utf-8');
-  if (existing.includes(CLAWIQ_TOOLS_HEADER)) {
+  if (existing.includes(CLAWIQ_TOOLS_MARKER)) {
     return false;
   }
 
@@ -293,16 +296,19 @@ export function removeClawiqTools(workspacePath: string): boolean {
   }
 
   const existing = readFileSync(toolsPath, 'utf-8');
-  const headerIndex = existing.indexOf(CLAWIQ_TOOLS_HEADER);
-  if (headerIndex === -1) {
+  const markerIndex = existing.indexOf(CLAWIQ_TOOLS_MARKER);
+  if (markerIndex === -1) {
     return false;
   }
+  const endIndex = existing.indexOf(CLAWIQ_TOOLS_END_MARKER, markerIndex);
+  if (endIndex !== -1) {
+    const after = endIndex + CLAWIQ_TOOLS_END_MARKER.length;
+    const updated = (existing.slice(0, markerIndex) + existing.slice(after)).trimEnd();
+    writeFileSync(toolsPath, updated.length ? updated + '\n' : '');
+    return true;
+  }
 
-  // Find the next ## header after the ClawIQ section
-  const afterHeader = existing.indexOf('\n## ', headerIndex + CLAWIQ_TOOLS_HEADER.length);
-  const before = existing.slice(0, headerIndex);
-  const after = afterHeader !== -1 ? existing.slice(afterHeader) : '';
-  const updated = (before + after).trimEnd();
+  const updated = existing.slice(0, markerIndex).trimEnd();
   writeFileSync(toolsPath, updated.length ? updated + '\n' : '');
   return true;
 }
