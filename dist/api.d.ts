@@ -189,21 +189,21 @@ export interface EventMarker {
 export interface EventMarkersResponse {
     markers: EventMarker[];
 }
-export type FindingSeverity = 'low' | 'medium' | 'high' | 'critical';
+export type FindingImpact = 'low' | 'medium' | 'high' | 'critical';
 export interface FindingMeta {
     title: string;
     description?: string;
     patch?: string;
     evidence?: string;
     target_agent: string;
-    finding_severity: FindingSeverity;
+    finding_impact?: FindingImpact;
 }
 export interface Finding {
     id: string;
     timestamp: string;
     agent_id?: string;
     target_agent: string;
-    severity: FindingSeverity;
+    impact: FindingImpact;
     title: string;
     description?: string;
     patch?: string;
@@ -241,7 +241,7 @@ export declare class ClawIQClient {
     submitFinding(finding: {
         agent: string;
         targetAgent: string;
-        severity: FindingSeverity;
+        impact: FindingImpact;
         title: string;
         description?: string;
         patch?: string;

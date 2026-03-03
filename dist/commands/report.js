@@ -13,14 +13,14 @@ const time_js_1 = require("../time.js");
 const config_js_1 = require("../config.js");
 const format_js_1 = require("../format.js");
 // ── Constants ──────────────────────────────────────────────────────
-const FINDING_SEVERITIES = ['low', 'medium', 'high', 'critical'];
-const SEVERITY_DISPLAY = {
+const FINDING_IMPACTS = ['low', 'medium', 'high', 'critical'];
+const IMPACT_DISPLAY = {
     low: (s) => chalk_1.default.dim(s),
     medium: (s) => chalk_1.default.yellow(s),
     high: (s) => chalk_1.default.red(s),
     critical: (s) => chalk_1.default.bgRed.white(` ${s} `),
 };
-const SEVERITY_ICONS = {
+const IMPACT_ICONS = {
     low: '○',
     medium: '◐',
     high: '●',
@@ -28,16 +28,16 @@ const SEVERITY_ICONS = {
 };
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // ── Helpers ────────────────────────────────────────────────────────
-function validateSeverity(value) {
-    if (!FINDING_SEVERITIES.includes(value)) {
-        throw new Error(`Invalid severity "${value}". Must be one of: ${FINDING_SEVERITIES.join(', ')}`);
+function validateImpact(value) {
+    if (!FINDING_IMPACTS.includes(value)) {
+        throw new Error(`Invalid impact "${value}". Must be one of: ${FINDING_IMPACTS.join(', ')}`);
     }
     return value;
 }
-function formatSeverity(severity) {
-    const icon = SEVERITY_ICONS[severity] || '•';
-    const colorize = SEVERITY_DISPLAY[severity] || ((s) => s);
-    return `${icon} ${colorize(severity)}`;
+function formatImpact(impact) {
+    const icon = IMPACT_ICONS[impact] || '•';
+    const colorize = IMPACT_DISPLAY[impact] || ((s) => s);
+    return `${icon} ${colorize(impact)}`;
 }
 function isNotFoundError(error) {
     return error instanceof Error && error.message.includes('API error (404)');
@@ -48,7 +48,7 @@ function printFindingDetail(finding) {
     console.log(chalk_1.default.dim('─'.repeat(60)));
     console.log(`  ${chalk_1.default.dim('ID:')}       ${finding.id}`);
     console.log(`  ${chalk_1.default.dim('Time:')}     ${new Date(finding.timestamp).toLocaleString()}`);
-    console.log(`  ${chalk_1.default.dim('Severity:')} ${formatSeverity(finding.severity)}`);
+    console.log(`  ${chalk_1.default.dim('Impact:')}   ${formatImpact(finding.impact)}`);
     console.log(`  ${chalk_1.default.dim('Agent:')}    ${finding.target_agent}`);
     if (finding.agent_id) {
         console.log(`  ${chalk_1.default.dim('Reporter:')} ${finding.agent_id}`);
@@ -81,16 +81,16 @@ function printFindingDetail(finding) {
 function printFindingsCompact(findings) {
     for (const f of findings) {
         const time = new Date(f.timestamp).toLocaleTimeString();
-        const sev = formatSeverity(f.severity);
+        const impact = formatImpact(f.impact);
         const agent = chalk_1.default.dim(f.target_agent);
-        console.log(`${chalk_1.default.dim(time)} ${sev} ${agent} ${f.title}`);
+        console.log(`${chalk_1.default.dim(time)} ${impact} ${agent} ${f.title}`);
     }
 }
 function printFindingsTable(findings) {
     const table = new cli_table3_1.default({
         head: [
             chalk_1.default.dim('Time'),
-            chalk_1.default.dim('Severity'),
+            chalk_1.default.dim('Impact'),
             chalk_1.default.dim('Agent'),
             chalk_1.default.dim('Title'),
             chalk_1.default.dim('ID'),
@@ -102,7 +102,7 @@ function printFindingsTable(findings) {
     for (const f of findings) {
         table.push([
             chalk_1.default.dim(new Date(f.timestamp).toLocaleString()),
-            formatSeverity(f.severity),
+            formatImpact(f.impact),
             f.target_agent,
             f.title,
             chalk_1.default.dim(f.id.slice(0, 24) + '…'),
@@ -115,7 +115,7 @@ function buildFindingCommand() {
     return new commander_1.Command('finding')
         .description('Submit a finding for an agent')
         .requiredOption('--agent <id>', 'Target agent the finding is about')
-        .requiredOption('--severity <level>', `Severity: ${FINDING_SEVERITIES.join(', ')}`)
+        .requiredOption('--impact <level>', `Impact: ${FINDING_IMPACTS.join(', ')}`)
         .requiredOption('--title <text>', 'Short description of the finding')
         .option('--description <text>', 'Detailed explanation')
         .option('--patch <text>', 'Suggested fix or behavioral patch text')
@@ -126,7 +126,7 @@ function buildFindingCommand() {
         .option('-q, --quiet', 'Suppress output')
         .action(async (options) => {
         try {
-            const severity = validateSeverity(options.severity);
+            const impact = validateImpact(options.impact);
             const client = (0, client_js_1.buildClient)(options.apiKey);
             const config = (0, config_js_1.loadConfig)();
             const reporter = options.reporter || config.defaultAgent || 'clawiq';
@@ -148,7 +148,7 @@ function buildFindingCommand() {
             const result = await client.submitFinding({
                 agent: reporter,
                 targetAgent: options.agent,
-                severity,
+                impact,
                 title: options.title,
                 description: options.description,
                 patch: options.patch,
@@ -162,7 +162,7 @@ function buildFindingCommand() {
                     event_ids: result.event_ids,
                     finding: {
                         agent: options.agent,
-                        severity,
+                        impact,
                         title: options.title,
                     },
                 }, null, 2));
@@ -173,7 +173,7 @@ function buildFindingCommand() {
                     console.log(chalk_1.default.green('✓') +
                         ` Finding submitted: ${chalk_1.default.cyan(result.event_ids[0])}`);
                     console.log(`  ${chalk_1.default.dim('agent:')}    ${options.agent}`);
-                    console.log(`  ${chalk_1.default.dim('severity:')} ${formatSeverity(severity)}`);
+                    console.log(`  ${chalk_1.default.dim('impact:')}   ${formatImpact(impact)}`);
                     console.log(`  ${chalk_1.default.dim('title:')}    ${options.title}`);
                     if (options.patch) {
                         console.log(`  ${chalk_1.default.dim('patch:')}    ${chalk_1.default.green('included')}`);
@@ -203,7 +203,7 @@ function buildListCommand() {
         .option('--since <time>', 'Start time (relative like 7d, or ISO)', '7d')
         .option('--until <time>', 'End time (relative or ISO)')
         .option('--agent <id>', 'Filter by target agent')
-        .option('--severity <level>', 'Filter by severity')
+        .option('--impact <level>', 'Filter by impact')
         .option('--limit <n>', 'Results per page', format_js_1.parseIntOption, 20)
         .option('--offset <n>', 'Pagination offset', format_js_1.parseIntOption)
         .option('--api-key <key>', 'ClawIQ API key')
@@ -223,10 +223,11 @@ function buildListCommand() {
                 offset,
             });
             let findings = response.findings;
-            // Client-side severity filter
-            if (options.severity) {
-                const sev = validateSeverity(options.severity);
-                findings = findings.filter((f) => f.severity === sev);
+            // Client-side impact filter
+            const impactFilter = options.impact;
+            if (impactFilter) {
+                const impact = validateImpact(impactFilter);
+                findings = findings.filter((f) => f.impact === impact);
             }
             if (options.quiet) {
                 process.exit(findings.length > 0 ? 0 : 1);

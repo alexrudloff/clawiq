@@ -170,7 +170,7 @@ The human reviews and applies patches. Never auto-applied.
 Emit events for system monitoring:
 - **Start review:** \\\`clawiq emit task performance-review -q --agent ${agent.id} --quality-tags started &\\\`
 - **Complete review:** \\\`clawiq emit task performance-review -q --agent ${agent.id} &\\\`
-- **Finding:** \\\`clawiq report finding --agent <target-agent> --severity <level> --title "..." --description "..." --patch "..." --evidence "..."\\\`
+- **Finding:** \\\`clawiq report finding --agent <target-agent> --impact <level> --title "..." --description "..." --patch "..." --evidence "..."\\\`
 - **Error:** \\\`clawiq emit error <name> -q --agent ${agent.id} --severity error --meta '{"reason":"..."}' &\\\`
 
 Run in background with \\\`&\\\`, always include \\\`-q --agent ${agent.id}\\\`.
@@ -307,7 +307,7 @@ Once per day (evening), run a full performance review. This is your core job.
 
 5. **Submit findings** via ClawIQ CLI:
    \\\`\\\`\\\`bash
-   clawiq report finding --agent <target-agent> --severity <level> \
+   clawiq report finding --agent <target-agent> --impact <level> \
      --title "Short description" \
      --description "What you found and why it matters" \
      --patch "The actual text to add/change in agent config" \
@@ -345,7 +345,7 @@ clawiq emit task performance-review -q --agent ${agent.id} &
 
 ### Report - Submit findings
 \\\`\\\`\\\`bash
-clawiq report finding --agent <target-agent> --severity <level> \
+clawiq report finding --agent <target-agent> --impact <level> \
   --title "..." --description "..." --patch "..." --evidence "..."
 clawiq report list --since 7d
 clawiq report show <finding-id>    # full UUID = exact API lookup

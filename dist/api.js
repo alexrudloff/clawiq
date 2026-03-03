@@ -9,12 +9,22 @@ function semanticEventToFinding(event) {
     catch {
         meta = undefined;
     }
+    const rawImpact = (meta?.finding_impact || '').toLowerCase();
+    const impact = rawImpact === 'low' || rawImpact === 'medium' || rawImpact === 'high' || rawImpact === 'critical'
+        ? rawImpact
+        : event.severity === 'error'
+            ? 'high'
+            : event.severity === 'warn'
+                ? 'medium'
+                : event.severity === 'info'
+                    ? 'low'
+                    : 'medium';
     return {
         id: event.id,
         timestamp: event.timestamp,
         agent_id: event.agent_id,
         target_agent: meta?.target_agent || event.target || '-',
-        severity: (meta?.finding_severity || 'medium'),
+        impact,
         title: meta?.title || event.name,
         description: meta?.description,
         patch: meta?.patch,
@@ -201,9 +211,9 @@ class ClawIQClient {
             type: 'finding',
             name: 'agent-finding',
             source: 'agent',
-            severity: finding.severity === 'critical' ? 'error'
-                : finding.severity === 'high' ? 'error'
-                    : finding.severity === 'medium' ? 'warn'
+            severity: finding.impact === 'critical' ? 'error'
+                : finding.impact === 'high' ? 'error'
+                    : finding.impact === 'medium' ? 'warn'
                         : 'info',
             agent_id: finding.agent,
             target: finding.targetAgent,
@@ -213,7 +223,7 @@ class ClawIQClient {
                 patch: finding.patch,
                 evidence: finding.evidence,
                 target_agent: finding.targetAgent,
-                finding_severity: finding.severity,
+                finding_impact: finding.impact,
             },
         };
         // Remove undefined meta fields

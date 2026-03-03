@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import Table from 'cli-table3';
 import ora from 'ora';
-import { Finding, FindingSeverity } from '../api.js';
+import { Finding, FindingImpact } from '../api.js';
 import { buildClient } from '../client.js';
 import { resolveTimeRange } from '../time.js';
 import { loadConfig } from '../config.js';
@@ -10,16 +10,16 @@ import { parseIntOption, handleError } from '../format.js';
 
 // ── Constants ──────────────────────────────────────────────────────
 
-const FINDING_SEVERITIES: FindingSeverity[] = ['low', 'medium', 'high', 'critical'];
+const FINDING_IMPACTS: FindingImpact[] = ['low', 'medium', 'high', 'critical'];
 
-const SEVERITY_DISPLAY: Record<FindingSeverity, (s: string) => string> = {
+const IMPACT_DISPLAY: Record<FindingImpact, (s: string) => string> = {
   low: (s) => chalk.dim(s),
   medium: (s) => chalk.yellow(s),
   high: (s) => chalk.red(s),
   critical: (s) => chalk.bgRed.white(` ${s} `),
 };
 
-const SEVERITY_ICONS: Record<FindingSeverity, string> = {
+const IMPACT_ICONS: Record<FindingImpact, string> = {
   low: '○',
   medium: '◐',
   high: '●',
@@ -30,19 +30,19 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 // ── Helpers ────────────────────────────────────────────────────────
 
-function validateSeverity(value: string): FindingSeverity {
-  if (!FINDING_SEVERITIES.includes(value as FindingSeverity)) {
+function validateImpact(value: string): FindingImpact {
+  if (!FINDING_IMPACTS.includes(value as FindingImpact)) {
     throw new Error(
-      `Invalid severity "${value}". Must be one of: ${FINDING_SEVERITIES.join(', ')}`
+      `Invalid impact "${value}". Must be one of: ${FINDING_IMPACTS.join(', ')}`
     );
   }
-  return value as FindingSeverity;
+  return value as FindingImpact;
 }
 
-function formatSeverity(severity: FindingSeverity): string {
-  const icon = SEVERITY_ICONS[severity] || '•';
-  const colorize = SEVERITY_DISPLAY[severity] || ((s: string) => s);
-  return `${icon} ${colorize(severity)}`;
+function formatImpact(impact: FindingImpact): string {
+  const icon = IMPACT_ICONS[impact] || '•';
+  const colorize = IMPACT_DISPLAY[impact] || ((s: string) => s);
+  return `${icon} ${colorize(impact)}`;
 }
 
 function isNotFoundError(error: unknown): boolean {
@@ -55,7 +55,7 @@ function printFindingDetail(finding: Finding): void {
   console.log(chalk.dim('─'.repeat(60)));
   console.log(`  ${chalk.dim('ID:')}       ${finding.id}`);
   console.log(`  ${chalk.dim('Time:')}     ${new Date(finding.timestamp).toLocaleString()}`);
-  console.log(`  ${chalk.dim('Severity:')} ${formatSeverity(finding.severity)}`);
+  console.log(`  ${chalk.dim('Impact:')}   ${formatImpact(finding.impact)}`);
   console.log(`  ${chalk.dim('Agent:')}    ${finding.target_agent}`);
   if (finding.agent_id) {
     console.log(`  ${chalk.dim('Reporter:')} ${finding.agent_id}`);
@@ -93,9 +93,9 @@ function printFindingDetail(finding: Finding): void {
 function printFindingsCompact(findings: Finding[]): void {
   for (const f of findings) {
     const time = new Date(f.timestamp).toLocaleTimeString();
-    const sev = formatSeverity(f.severity);
+    const impact = formatImpact(f.impact);
     const agent = chalk.dim(f.target_agent);
-    console.log(`${chalk.dim(time)} ${sev} ${agent} ${f.title}`);
+    console.log(`${chalk.dim(time)} ${impact} ${agent} ${f.title}`);
   }
 }
 
@@ -103,7 +103,7 @@ function printFindingsTable(findings: Finding[]): void {
   const table = new Table({
     head: [
       chalk.dim('Time'),
-      chalk.dim('Severity'),
+      chalk.dim('Impact'),
       chalk.dim('Agent'),
       chalk.dim('Title'),
       chalk.dim('ID'),
@@ -116,7 +116,7 @@ function printFindingsTable(findings: Finding[]): void {
   for (const f of findings) {
     table.push([
       chalk.dim(new Date(f.timestamp).toLocaleString()),
-      formatSeverity(f.severity),
+      formatImpact(f.impact),
       f.target_agent,
       f.title,
       chalk.dim(f.id.slice(0, 24) + '…'),
@@ -132,7 +132,7 @@ function buildFindingCommand(): Command {
   return new Command('finding')
     .description('Submit a finding for an agent')
     .requiredOption('--agent <id>', 'Target agent the finding is about')
-    .requiredOption('--severity <level>', `Severity: ${FINDING_SEVERITIES.join(', ')}`)
+    .requiredOption('--impact <level>', `Impact: ${FINDING_IMPACTS.join(', ')}`)
     .requiredOption('--title <text>', 'Short description of the finding')
     .option('--description <text>', 'Detailed explanation')
     .option('--patch <text>', 'Suggested fix or behavioral patch text')
@@ -143,7 +143,7 @@ function buildFindingCommand(): Command {
     .option('-q, --quiet', 'Suppress output')
     .action(async (options) => {
       try {
-        const severity = validateSeverity(options.severity);
+        const impact = validateImpact(options.impact);
         const client = buildClient(options.apiKey);
         const config = loadConfig();
 
@@ -169,7 +169,7 @@ function buildFindingCommand(): Command {
         const result = await client.submitFinding({
           agent: reporter,
           targetAgent: options.agent,
-          severity,
+          impact,
           title: options.title,
           description: options.description,
           patch: options.patch,
@@ -184,7 +184,7 @@ function buildFindingCommand(): Command {
             event_ids: result.event_ids,
             finding: {
               agent: options.agent,
-              severity,
+              impact,
               title: options.title,
             },
           }, null, 2));
@@ -198,7 +198,7 @@ function buildFindingCommand(): Command {
               ` Finding submitted: ${chalk.cyan(result.event_ids[0])}`
             );
             console.log(`  ${chalk.dim('agent:')}    ${options.agent}`);
-            console.log(`  ${chalk.dim('severity:')} ${formatSeverity(severity)}`);
+            console.log(`  ${chalk.dim('impact:')}   ${formatImpact(impact)}`);
             console.log(`  ${chalk.dim('title:')}    ${options.title}`);
             if (options.patch) {
               console.log(`  ${chalk.dim('patch:')}    ${chalk.green('included')}`);
@@ -226,7 +226,7 @@ function buildListCommand(): Command {
     .option('--since <time>', 'Start time (relative like 7d, or ISO)', '7d')
     .option('--until <time>', 'End time (relative or ISO)')
     .option('--agent <id>', 'Filter by target agent')
-    .option('--severity <level>', 'Filter by severity')
+    .option('--impact <level>', 'Filter by impact')
     .option('--limit <n>', 'Results per page', parseIntOption, 20)
     .option('--offset <n>', 'Pagination offset', parseIntOption)
     .option('--api-key <key>', 'ClawIQ API key')
@@ -249,10 +249,11 @@ function buildListCommand(): Command {
 
         let findings = response.findings;
 
-        // Client-side severity filter
-        if (options.severity) {
-          const sev = validateSeverity(options.severity);
-          findings = findings.filter((f) => f.severity === sev);
+        // Client-side impact filter
+        const impactFilter = options.impact;
+        if (impactFilter) {
+          const impact = validateImpact(impactFilter);
+          findings = findings.filter((f) => f.impact === impact);
         }
 
         if (options.quiet) {
