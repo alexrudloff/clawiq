@@ -267,8 +267,11 @@ Once per day (evening), run a full performance review. This is your core job.
    \\\`\\\`\\\`bash
    sessions_list --activeMinutes 1440 --messageLimit 3
    sessions_history --sessionKey <key> --limit 50
+   # For raw JSONL files on disk (auto-minified, saves >50% tokens):
+   clawiq session ~/.openclaw/agents/<agent>/sessions/<id>.jsonl
    \\\`\\\`\\\`
    - Only read sessions that OTEL flagged as interesting
+   - For large sessions, prefer \\\`clawiq session <path>\\\` over raw file reads — it strips metadata and truncates tool results automatically
    - Look for: what actually happened, what went wrong, what the agent tried
    - Look for hidden loops: agent re-discovering fixes, retrying the same failures
 
@@ -352,17 +355,13 @@ sessions_history --sessionKey <key> --limit 50
 
 **Workflow:** Pull OTEL data first → identify interesting sessions → read only those with sessions_history. Don't read everything blind.
 
-### clawiq session minify
-Minify a session JSONL file before analysis. Strips metadata, truncates large tool results, keeps conversation structure. Saves >50% tokens.
+### clawiq session (auto-minified reading)
+Read a session JSONL file from disk. Output is automatically minified — metadata stripped, tool results truncated, conversation structure preserved. Saves >50% tokens with no analysis quality loss.
 \\\`\\\`\\\`bash
-# Dry run — see token savings without output
-clawiq session minify ~/.openclaw/agents/<agent>/sessions/<id>.jsonl --dry-run
-
-# Minify and read the output
-clawiq session minify ~/.openclaw/agents/<agent>/sessions/<id>.jsonl
+clawiq session ~/.openclaw/agents/<agent>/sessions/<id>.jsonl
 \\\`\\\`\\\`
 
-**Use this before analyzing large sessions.** Raw sessions waste tokens on UUIDs, duplicate metadata, and full file reads that can be megabytes. The minifier keeps what matters for analysis (role, content, tool names, token counts, errors) and truncates the rest.
+**Use this instead of reading raw JSONL files directly.** Raw sessions waste tokens on UUIDs, duplicate metadata, and full file reads that can be megabytes. This command keeps what matters for analysis (role, content, tool names, token counts, errors) and truncates the rest.
 
 ## File Tools
 
