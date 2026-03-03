@@ -236,6 +236,28 @@ export interface FindingsResponse {
   findings: Finding[];
   total: number;
 }
+
+function semanticEventToFinding(event: SemanticEvent): Finding {
+  let meta: FindingMeta | undefined;
+  try {
+    meta = (typeof event.meta === 'string' ? JSON.parse(event.meta) : event.meta) as FindingMeta | undefined;
+  } catch {
+    meta = undefined;
+  }
+
+  return {
+    id: event.id,
+    timestamp: event.timestamp,
+    agent_id: event.agent_id,
+    target_agent: meta?.target_agent || event.target || '-',
+    severity: (meta?.finding_severity || 'medium') as FindingSeverity,
+    title: meta?.title || event.name,
+    description: meta?.description,
+    patch: meta?.patch,
+    evidence: meta?.evidence,
+  };
+}
+
 export class ClawIQClient {
   constructor(
     private endpoint: string,
@@ -318,6 +340,10 @@ export class ClawIQClient {
     if (params.name) searchParams.set('name', params.name);
     const query = searchParams.toString();
     return this.request<QueryResponse>('GET', `/v1/semantic-events${query ? `?${query}` : ''}`);
+  }
+
+  async getSemanticEventByID(eventID: string): Promise<SemanticEvent> {
+    return this.request<SemanticEvent>('GET', `/v1/semantic-events/${encodeURIComponent(eventID)}`);
   }
 
   async getEvents(params: EventsQueryParams): Promise<EventsResponse> {
@@ -457,20 +483,7 @@ export class ClawIQClient {
       offset: params.offset,
     });
 
-    let findings: Finding[] = response.events.map((event) => {
-      const meta = (typeof event.meta === 'string' ? JSON.parse(event.meta) : event.meta) as FindingMeta | undefined;
-      return {
-        id: event.id,
-        timestamp: event.timestamp,
-        agent_id: event.agent_id,
-        target_agent: meta?.target_agent || event.target || '-',
-        severity: (meta?.finding_severity || 'medium') as FindingSeverity,
-        title: meta?.title || event.name,
-        description: meta?.description,
-        patch: meta?.patch,
-        evidence: meta?.evidence,
-      };
-    });
+    let findings: Finding[] = response.events.map(semanticEventToFinding);
 
     // Client-side filter by target agent if specified
     if (params.targetAgent) {
@@ -481,6 +494,14 @@ export class ClawIQClient {
       findings,
       total: params.targetAgent ? findings.length : response.total,
     };
+  }
+
+  async getFindingByID(findingID: string): Promise<Finding> {
+    const event = await this.getSemanticEventByID(findingID);
+    if (event.type !== 'finding') {
+      throw new Error(`Event ${findingID} is not a finding`);
+    }
+    return semanticEventToFinding(event);
   }
 
 }

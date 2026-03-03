@@ -26,6 +26,8 @@ const SEVERITY_ICONS: Record<FindingSeverity, string> = {
   critical: '◉',
 };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // ── Helpers ────────────────────────────────────────────────────────
 
 function validateSeverity(value: string): FindingSeverity {
@@ -41,6 +43,10 @@ function formatSeverity(severity: FindingSeverity): string {
   const icon = SEVERITY_ICONS[severity] || '•';
   const colorize = SEVERITY_DISPLAY[severity] || ((s: string) => s);
   return `${icon} ${colorize(severity)}`;
+}
+
+function isNotFoundError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('API error (404)');
 }
 
 function printFindingDetail(finding: Finding): void {
@@ -301,21 +307,34 @@ function buildShowCommand(): Command {
     .action(async (findingId: string, options) => {
       try {
         const client = buildClient(options.apiKey);
+        const normalizedID = findingId.trim();
+        let finding: Finding | undefined;
 
-        // Search recent findings for the ID (or prefix match)
-        const response = await client.getFindings({
-          since: '90d',
-          limit: 500,
-        });
-
-        const finding = response.findings.find(
-          (f) => f.id === findingId || f.id.startsWith(findingId)
-        );
+        if (UUID_RE.test(normalizedID)) {
+          try {
+            finding = await client.getFindingByID(normalizedID);
+          } catch (error) {
+            if (!isNotFoundError(error)) {
+              throw error;
+            }
+          }
+        } else {
+          // Prefix lookup fallback for convenience.
+          const response = await client.getFindings({
+            since: '365d',
+            limit: 5000,
+          });
+          finding = response.findings.find((f) => f.id.startsWith(normalizedID));
+        }
 
         if (!finding) {
           if (options.quiet) process.exit(1);
           console.error(chalk.red(`Finding not found: ${findingId}`));
-          console.error(chalk.dim('Try: clawiq report list --since 30d'));
+          if (!UUID_RE.test(normalizedID)) {
+            console.error(chalk.dim('Try a full UUID for exact lookup.'));
+          } else {
+            console.error(chalk.dim('Try: clawiq report list --since 30d'));
+          }
           process.exit(1);
         }
 

@@ -229,6 +229,7 @@ export declare class ClawIQClient {
      */
     getTags(since?: string, limit?: number): Promise<TagsResponse>;
     getSemanticEvents(params: QueryParams): Promise<QueryResponse>;
+    getSemanticEventByID(eventID: string): Promise<SemanticEvent>;
     getEvents(params: EventsQueryParams): Promise<EventsResponse>;
     getTraces(params: TracesQueryParams): Promise<TracesResponse>;
     getErrors(params: ErrorsQueryParams): Promise<ErrorsResponse>;
@@ -257,5 +258,6 @@ export declare class ClawIQClient {
         limit?: number;
         offset?: number;
     }): Promise<FindingsResponse>;
+    getFindingByID(findingID: string): Promise<Finding>;
 }
 //# sourceMappingURL=api.d.ts.map

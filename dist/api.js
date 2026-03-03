@@ -1,6 +1,26 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClawIQClient = void 0;
+function semanticEventToFinding(event) {
+    let meta;
+    try {
+        meta = (typeof event.meta === 'string' ? JSON.parse(event.meta) : event.meta);
+    }
+    catch {
+        meta = undefined;
+    }
+    return {
+        id: event.id,
+        timestamp: event.timestamp,
+        agent_id: event.agent_id,
+        target_agent: meta?.target_agent || event.target || '-',
+        severity: (meta?.finding_severity || 'medium'),
+        title: meta?.title || event.name,
+        description: meta?.description,
+        patch: meta?.patch,
+        evidence: meta?.evidence,
+    };
+}
 class ClawIQClient {
     endpoint;
     apiKey;
@@ -87,6 +107,9 @@ class ClawIQClient {
             searchParams.set('name', params.name);
         const query = searchParams.toString();
         return this.request('GET', `/v1/semantic-events${query ? `?${query}` : ''}`);
+    }
+    async getSemanticEventByID(eventID) {
+        return this.request('GET', `/v1/semantic-events/${encodeURIComponent(eventID)}`);
     }
     async getEvents(params) {
         const searchParams = new URLSearchParams();
@@ -215,20 +238,7 @@ class ClawIQClient {
             limit: params.limit,
             offset: params.offset,
         });
-        let findings = response.events.map((event) => {
-            const meta = (typeof event.meta === 'string' ? JSON.parse(event.meta) : event.meta);
-            return {
-                id: event.id,
-                timestamp: event.timestamp,
-                agent_id: event.agent_id,
-                target_agent: meta?.target_agent || event.target || '-',
-                severity: (meta?.finding_severity || 'medium'),
-                title: meta?.title || event.name,
-                description: meta?.description,
-                patch: meta?.patch,
-                evidence: meta?.evidence,
-            };
-        });
+        let findings = response.events.map(semanticEventToFinding);
         // Client-side filter by target agent if specified
         if (params.targetAgent) {
             findings = findings.filter((f) => f.target_agent === params.targetAgent);
@@ -237,6 +247,13 @@ class ClawIQClient {
             findings,
             total: params.targetAgent ? findings.length : response.total,
         };
+    }
+    async getFindingByID(findingID) {
+        const event = await this.getSemanticEventByID(findingID);
+        if (event.type !== 'finding') {
+            throw new Error(`Event ${findingID} is not a finding`);
+        }
+        return semanticEventToFinding(event);
     }
 }
 exports.ClawIQClient = ClawIQClient;
