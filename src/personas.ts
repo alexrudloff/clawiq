@@ -271,7 +271,7 @@ Once per day (evening), run a full performance review. This is your core job.
    clawiq session ~/.openclaw/agents/<agent>/sessions/<id>.jsonl
    \\\`\\\`\\\`
    - Only read sessions that OTEL flagged as interesting
-   - For large sessions, prefer \\\`clawiq session <path>\\\` over raw file reads — it strips metadata and truncates tool results automatically
+   - Always use \\\`clawiq session <path>\\\` to read sessions for analysis — never raw file reads
    - Look for: what actually happened, what went wrong, what the agent tried
    - Look for hidden loops: agent re-discovering fixes, retrying the same failures
 
