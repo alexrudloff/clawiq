@@ -6,6 +6,7 @@ const DEFAULT_AGENT_ID = "clawiq";
 const DEFAULT_POLL_INTERVAL_MS = 2500;
 const MIN_POLL_INTERVAL_MS = 1000;
 const MAX_POLL_INTERVAL_MS = 30000;
+const DEFAULT_AGENT_TIMEOUT_MS = 180000;
 
 function asObject(value) {
   return value && typeof value === "object" ? value : {};
@@ -215,11 +216,92 @@ async function markInboundFailed(account, inboundMessageId, error) {
   }
 }
 
+function extractJsonObject(text) {
+  const raw = asString(text).trim();
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    // Continue and try to strip preamble noise.
+  }
+
+  const firstBrace = raw.indexOf("{");
+  if (firstBrace < 0) {
+    return null;
+  }
+
+  const candidate = raw.slice(firstBrace).trim();
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    return null;
+  }
+}
+
+function extractAgentReplyFromCliResult(payload) {
+  const payloads = Array.isArray(payload?.result?.payloads) ? payload.result.payloads : [];
+  const texts = payloads.map((entry) => asString(entry?.text)).filter((text) => text !== "");
+  return texts.join("\n\n").trim();
+}
+
+async function runAgentViaCli(account, message) {
+  const runtime = getClawiqWebRuntime();
+  const runCommandWithTimeout = runtime?.system?.runCommandWithTimeout;
+  if (typeof runCommandWithTimeout !== "function") {
+    throw new Error("OpenClaw command runner unavailable");
+  }
+
+  const conversationSessionId = `clawiq-web:${message.conversationId}`;
+  const argv = [
+    "openclaw",
+    "agent",
+    "--agent",
+    message.agentId || account.config.agentId,
+    "--session-id",
+    conversationSessionId,
+    "--message",
+    message.content,
+    "--json",
+    "--timeout",
+    "180",
+  ];
+
+  const result = await runCommandWithTimeout(argv, {
+    timeoutMs: DEFAULT_AGENT_TIMEOUT_MS,
+  });
+
+  if (result?.code !== 0) {
+    const stderr = asString(result?.stderr);
+    const stdout = asString(result?.stdout);
+    throw new Error(stderr || stdout || `openclaw agent exited with code ${result?.code}`);
+  }
+
+  const payload = extractJsonObject(result?.stdout ?? "");
+  if (!payload) {
+    throw new Error("Unable to parse openclaw agent JSON output");
+  }
+
+  const replyText = extractAgentReplyFromCliResult(payload);
+  if (!replyText) {
+    throw new Error("Agent completed without a textual reply");
+  }
+
+  await postAssistantReply(account, message, replyText);
+}
+
 async function deliverInboundMessage(ctx, account, message) {
   const runtime = getClawiqWebRuntime();
   const inboundHandler = runtime?.channel?.reply?.handleInboundMessage;
   if (typeof inboundHandler !== "function") {
-    throw new Error("OpenClaw inbound handler unavailable");
+    await runAgentViaCli(account, message);
+    updateRuntimeStatus(ctx, {
+      lastOutboundAt: Date.now(),
+      lastError: null,
+    });
+    return;
   }
 
   let replied = false;
