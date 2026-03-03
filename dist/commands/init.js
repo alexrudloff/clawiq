@@ -16,6 +16,7 @@ const personas_js_1 = require("../personas.js");
 const workspace_js_1 = require("../workspace.js");
 const cli_js_1 = require("../cli.js");
 const openclaw_service_js_1 = require("../openclaw_service.js");
+const otel_plugin_js_1 = require("../utils/otel-plugin.js");
 function createInitCommand() {
     const cmd = new commander_1.Command('init')
         .description('Set up ClawIQ agent, OTEL diagnostics, and agent workspaces')
@@ -316,6 +317,8 @@ function createInitCommand() {
             catch {
                 firstRunSpinner.warn('Could not trigger first review. Lenny will run his first full review tonight at 3 AM.');
             }
+            // ── [12] Ensure diagnostics-otel plugin deps ──────────────
+            await (0, otel_plugin_js_1.ensureOtelPluginDeps)();
             // ── Done ─────────────────────────────────────────────────
             console.log(chalk_1.default.bold.green('\n\u2705 Setup complete!\n'));
             console.log(chalk_1.default.dim('What was set up:'));

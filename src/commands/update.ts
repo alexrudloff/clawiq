@@ -14,6 +14,7 @@ import {
   generateTools,
   generateBootstrap,
 } from '../personas.js';
+import { ensureOtelPluginDeps } from '../utils/otel-plugin.js';
 
 // __dirname works in CommonJS
 
@@ -90,6 +91,10 @@ export function createUpdateCommand(): Command {
       }
 
       console.log(chalk.dim(`\nPreserved: ${preserved.join(', ')}`));
+
+      // Ensure diagnostics-otel plugin deps are installed
+      await ensureOtelPluginDeps();
+
       console.log(chalk.bold(`\n🦞 ${CLAWIQ_AGENT.name} updated. Claws sharpened.\n`));
     });
 

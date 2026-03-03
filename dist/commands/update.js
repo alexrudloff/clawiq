@@ -12,6 +12,7 @@ const fs_1 = require("fs");
 const child_process_1 = require("child_process");
 const openclaw_js_1 = require("../openclaw.js");
 const personas_js_1 = require("../personas.js");
+const otel_plugin_js_1 = require("../utils/otel-plugin.js");
 // __dirname works in CommonJS
 function run(cmd, args, cwd) {
     return new Promise((resolve, reject) => {
@@ -79,6 +80,8 @@ function createUpdateCommand() {
             }
         }
         console.log(chalk_1.default.dim(`\nPreserved: ${preserved.join(', ')}`));
+        // Ensure diagnostics-otel plugin deps are installed
+        await (0, otel_plugin_js_1.ensureOtelPluginDeps)();
         console.log(chalk_1.default.bold(`\n🦞 ${personas_js_1.CLAWIQ_AGENT.name} updated. Claws sharpened.\n`));
     });
     return cmd;

@@ -10,6 +10,7 @@ import { CLAWIQ_AGENT } from '../personas.js';
 import { createWorkspace, discoverWorkspaces, workspaceExists, appendClawiqTools, installClawiqSkill } from '../workspace.js';
 import { prompt, confirm } from '../cli.js';
 import { configureOtelDiagnostics, ensureDiagnosticsPlugin, upsertAgent } from '../openclaw_service.js';
+import { ensureOtelPluginDeps } from '../utils/otel-plugin.js';
 
 export function createInitCommand(): Command {
   const cmd = new Command('init')
@@ -305,6 +306,9 @@ export function createInitCommand(): Command {
         } catch {
           firstRunSpinner.warn('Could not trigger first review. Lenny will run his first full review tonight at 3 AM.');
         }
+
+        // ── [12] Ensure diagnostics-otel plugin deps ──────────────
+        await ensureOtelPluginDeps();
 
         // ── Done ─────────────────────────────────────────────────
         console.log(chalk.bold.green('\n\u2705 Setup complete!\n'));
