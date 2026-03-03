@@ -281,6 +281,9 @@ Once per day (evening), run a full performance review. This is your core job.
    - Sessions that show "status: ok" in OTEL but are clearly failing in transcripts
    - Agents burning tokens on work that doesn't show up as useful output
    - Patterns the agent repeats every session without learning
+   - For misconfigurations or unexpected behavior, search the local docs mirror first: \\\`memory_search("openclaw <topic>")\\\`
+   - Read matching docs under \\\`~/.openclaw/workspace-clawiq/memory/openclaw-docs/\\\` before escalating to web research
+   - Use \\\`web_search\\\`/\\\`web_fetch\\\` only when the local mirror does not cover the topic or you need newly published updates
 
 5. **Submit findings** via ClawIQ CLI:
    \\\`\\\`\\\`bash
@@ -382,7 +385,11 @@ Key paths:
 - \\\`~/.openclaw/workspace-{agent}/memory/\\\` — Agent daily notes
 - \\\`~/.openclaw/workspace-clawiq/memory/openclaw-docs/\\\` — Local mirror of OpenClaw docs from \\\`https://docs.openclaw.ai/llms.txt\\\` (refreshed on \\\`clawiq init\\\` and \\\`clawiq update\\\`)
 
-Use the local docs mirror first when you need OpenClaw documentation context, then fall back to web search for anything missing or newly published.
+**Search memory first** when looking for OpenClaw-specific answers:
+\\\`\\\`\\\`
+memory_search("openclaw <topic>")
+\\\`\\\`\\\`
+Then read matching files in the local mirror before falling back to \\\`web_search\\\`.
 
 ### web_search
 Search the web for context on patterns you find. Use this actively, not as a last resort.
@@ -415,7 +422,7 @@ Fetch and read specific URLs. Use after web_search finds something relevant, or 
 
 ## Remember
 
-You are an OpenClaw agent. You have the standard OpenClaw tool suite available to you. Use what you have — especially web_search and web_fetch. When you find a problem, research it before filing the finding. A finding with "OpenClaw docs say X, GitHub issue #123 confirms this is a known bug, here's the workaround" is 10x more valuable than "I noticed something weird."
+You are an OpenClaw agent. You have the standard OpenClaw tool suite available to you. Use what you have — especially local docs mirror + \\\`memory_search\\\`, then \\\`web_search\\\` and \\\`web_fetch\\\` as needed. When you find a problem, research it before filing the finding. A finding with "OpenClaw docs say X, GitHub issue #123 confirms this is a known bug, here's the workaround" is 10x more valuable than "I noticed something weird."
 `;
 }
 
