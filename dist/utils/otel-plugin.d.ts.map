@@ -1,1 +1,1 @@
-{"version":3,"file":"otel-plugin.d.ts","sourceRoot":"","sources":["../../src/utils/otel-plugin.ts"],"names":[],"mappings":"AAQA;;;GAGG;AACH,wBAAsB,oBAAoB,IAAI,OAAO,CAAC,IAAI,CAAC,CAsB1D"}
+{"version":3,"file":"otel-plugin.d.ts","sourceRoot":"","sources":["../../src/utils/otel-plugin.ts"],"names":[],"mappings":"AAuBA;;;GAGG;AACH,wBAAsB,oBAAoB,IAAI,OAAO,CAAC,IAAI,CAAC,CAuB1D"}

@@ -1,18 +1,34 @@
 import { existsSync } from 'fs';
-import { join } from 'path';
-import { execFile } from 'child_process';
+import { join, dirname, resolve } from 'path';
+import { execFile, execFileSync } from 'child_process';
 import chalk from 'chalk';
 import ora from 'ora';
 
-const OTEL_PLUGIN_DIR = '/opt/homebrew/lib/node_modules/openclaw/extensions/diagnostics-otel';
+/**
+ * Resolve the diagnostics-otel plugin directory dynamically.
+ * Derives path from `which openclaw` so it works regardless of install method
+ * (homebrew, npm global, nvm, volta, custom prefix, etc.)
+ */
+function getOtelPluginDir(): string | null {
+  try {
+    const openclaw = execFileSync('which', ['openclaw'], { encoding: 'utf8' }).trim();
+    // openclaw binary is at <prefix>/bin/openclaw
+    // extensions are at <prefix>/lib/node_modules/openclaw/extensions/
+    const prefix = resolve(dirname(openclaw), '..');
+    return join(prefix, 'lib', 'node_modules', 'openclaw', 'extensions', 'diagnostics-otel');
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Checks if the diagnostics-otel plugin exists and has its npm dependencies installed.
  * If deps are missing, runs npm install automatically. Non-blocking on failure.
  */
 export async function ensureOtelPluginDeps(): Promise<void> {
-  if (!existsSync(OTEL_PLUGIN_DIR)) {
-    return; // Plugin not installed, skip silently
+  const OTEL_PLUGIN_DIR = getOtelPluginDir();
+  if (!OTEL_PLUGIN_DIR || !existsSync(OTEL_PLUGIN_DIR)) {
+    return; // Plugin not installed or openclaw not found, skip silently
   }
 
   const markerPath = join(OTEL_PLUGIN_DIR, 'node_modules', '@opentelemetry', 'api');
