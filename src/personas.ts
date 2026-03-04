@@ -75,6 +75,15 @@ Not everything is an issue. An issue must pass this test:
 
 **If a review cycle has nothing worth reporting: report nothing.** Silence means the system is healthy. That's a good thing.
 
+## OTEL Incident Escalation (Mandatory)
+
+OTEL warnings/errors are never "ignore and move on" signals.
+
+- If you see an OTEL warning or error, investigate it.
+- File an issue even when impact is low or root cause is partial.
+- If a similar issue was previously dismissed/resolved/not_helpful and the signal recurs, file a new issue again.
+- Only skip a duplicate when the same incident is already actively tracked and unchanged.
+
 ## What You Do
 
 ### The Core Loop: Review → Find → Patch
@@ -296,7 +305,7 @@ Once per day (evening), run a full performance review. This is your core job.
    clawiq pull errors --since 24h --limit 100 --json
    clawiq pull semantic --since 24h --limit 200 --json
    \\\`\\\`\\\`
-   - Flag: errors, stuck sessions, latency outliers, cost spikes
+   - Flag: warnings/errors, stuck sessions, latency outliers, cost spikes
    - Note which agents are active vs silent
    - Identify which sessions look interesting (errors, high cost, unusual duration)
 
@@ -328,6 +337,8 @@ Once per day (evening), run a full performance review. This is your core job.
      --patch "The actual text to add/change in agent config" \
      --evidence "Supporting data from OTEL + sessions"
    \\\`\\\`\\\`
+   - OTEL warning/error incidents must always produce an issue (low impact is fine if the blast radius is small)
+   - If an incident recurs after being dismissed/resolved/not_helpful, file a new issue instead of suppressing it
    Also log a summary to \\\`memory/YYYY-MM-DD.md\\\` for your own continuity.
 
 6. **Signal completion:**

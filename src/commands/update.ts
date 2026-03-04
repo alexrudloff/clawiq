@@ -8,6 +8,7 @@ import { API_ENDPOINT, loadConfig } from '../config.js';
 import { loadOpenClawConfig, OPENCLAW_DIR, saveOpenClawConfig } from '../openclaw.js';
 import {
   CLAWIQ_AGENT,
+  generateBootstrap,
   generateIdentity,
   generateSoul,
   generateAgents,
@@ -79,6 +80,7 @@ export function createUpdateCommand(): Command {
         { file: 'AGENTS.md', generator: () => generateAgents(CLAWIQ_AGENT) },
         { file: 'HEARTBEAT.md', generator: () => generateHeartbeat(CLAWIQ_AGENT) },
         { file: 'TOOLS.md', generator: () => generateTools(CLAWIQ_AGENT) },
+        { file: 'BOOTSTRAP.md', generator: () => generateBootstrap(CLAWIQ_AGENT) },
       ];
 
       const preserved = ['MEMORY.md', 'USER.md', 'memory/'];

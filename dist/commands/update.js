@@ -71,6 +71,7 @@ function createUpdateCommand() {
             { file: 'AGENTS.md', generator: () => (0, personas_js_1.generateAgents)(personas_js_1.CLAWIQ_AGENT) },
             { file: 'HEARTBEAT.md', generator: () => (0, personas_js_1.generateHeartbeat)(personas_js_1.CLAWIQ_AGENT) },
             { file: 'TOOLS.md', generator: () => (0, personas_js_1.generateTools)(personas_js_1.CLAWIQ_AGENT) },
+            { file: 'BOOTSTRAP.md', generator: () => (0, personas_js_1.generateBootstrap)(personas_js_1.CLAWIQ_AGENT) },
         ];
         const preserved = ['MEMORY.md', 'USER.md', 'memory/'];
         for (const { file, generator } of updates) {
