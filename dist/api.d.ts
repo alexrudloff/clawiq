@@ -213,6 +213,40 @@ export interface IssuesResponse {
     issues: Issue[];
     total: number;
 }
+export type IssueStatus = 'open' | 'dismissed' | 'resolved' | 'not_helpful';
+export interface IssueStateRecord {
+    issue_id: string;
+    status: IssueStatus;
+    last_signal?: string;
+    updated_at: string;
+}
+export interface LennyDiscussionConversation {
+    id: string;
+    account_id?: string;
+    agent_id: string;
+    title: string;
+    issue_id?: string;
+    created_at: string;
+    updated_at: string;
+}
+export interface LennyDiscussionMessage {
+    id: string;
+    conversation_id: string;
+    agent_id: string;
+    role: string;
+    direction: string;
+    content: string;
+    status: string;
+    error_message?: string;
+    replied_to_id?: string;
+    created_at: string;
+    updated_at: string;
+}
+export interface LennyIssueDiscussion {
+    issue_id: string;
+    conversation?: LennyDiscussionConversation;
+    messages: LennyDiscussionMessage[];
+}
 export declare class ClawIQClient {
     private endpoint;
     private apiKey;
@@ -261,5 +295,7 @@ export declare class ClawIQClient {
         offset?: number;
     }): Promise<IssuesResponse>;
     getIssueByID(issueID: string): Promise<Issue>;
+    getIssueState(issueID: string): Promise<IssueStateRecord | null>;
+    getIssueDiscussion(issueID: string, limit?: number): Promise<LennyIssueDiscussion | null>;
 }
 //# sourceMappingURL=api.d.ts.map

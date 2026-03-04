@@ -42,13 +42,32 @@ function formatImpact(impact) {
 function isNotFoundError(error) {
     return error instanceof Error && error.message.includes('API error (404)');
 }
-function printIssueDetail(issue) {
+function formatIssueStatus(state) {
+    if (!state) {
+        return chalk_1.default.green('open');
+    }
+    const normalized = (state.status || '').toLowerCase();
+    if (normalized === 'resolved')
+        return chalk_1.default.green('resolved');
+    if (normalized === 'dismissed')
+        return chalk_1.default.dim('dismissed');
+    if (normalized === 'not_helpful')
+        return chalk_1.default.yellow('not_helpful');
+    return chalk_1.default.green(normalized || 'open');
+}
+function printIssueDetail(issue, context) {
+    const state = context?.state ?? null;
+    const discussion = context?.discussion ?? null;
     console.log('');
     console.log(chalk_1.default.bold(`Issue: ${issue.title}`));
     console.log(chalk_1.default.dim('─'.repeat(60)));
     console.log(`  ${chalk_1.default.dim('ID:')}       ${issue.id}`);
     console.log(`  ${chalk_1.default.dim('Time:')}     ${new Date(issue.timestamp).toLocaleString()}`);
     console.log(`  ${chalk_1.default.dim('Impact:')}   ${formatImpact(issue.impact)}`);
+    console.log(`  ${chalk_1.default.dim('Status:')}   ${formatIssueStatus(state)}`);
+    if (state?.last_signal) {
+        console.log(`  ${chalk_1.default.dim('Signal:')}   ${state.last_signal}`);
+    }
     console.log(`  ${chalk_1.default.dim('Agent:')}    ${issue.target_agent}`);
     if (issue.agent_id) {
         console.log(`  ${chalk_1.default.dim('Reporter:')} ${issue.agent_id}`);
@@ -74,6 +93,26 @@ function printIssueDetail(issue) {
         console.log(chalk_1.default.dim('  Evidence:'));
         for (const line of issue.evidence.split('\n')) {
             console.log(`    ${chalk_1.default.dim(line)}`);
+        }
+    }
+    console.log('');
+    console.log(chalk_1.default.dim('  Discussion Transcript:'));
+    if (!discussion?.conversation || discussion.messages.length === 0) {
+        console.log(chalk_1.default.dim('    (no discussion history yet)'));
+    }
+    else {
+        console.log(`    ${chalk_1.default.dim('Thread:')} ${discussion.conversation.title}`);
+        for (const message of discussion.messages) {
+            const ts = new Date(message.created_at).toLocaleString();
+            const role = message.role === 'assistant' ? 'Lenny' : 'User';
+            const roleColor = message.role === 'assistant' ? chalk_1.default.magenta : chalk_1.default.cyan;
+            console.log(`    ${chalk_1.default.dim(`[${ts}]`)} ${roleColor(role)}${chalk_1.default.dim(':')}`);
+            for (const line of (message.content || '').split('\n')) {
+                console.log(`      ${line}`);
+            }
+            if (message.status === 'failed' && message.error_message) {
+                console.log(`      ${chalk_1.default.red(`(failed: ${message.error_message})`)}`);
+            }
         }
     }
     console.log('');
@@ -310,11 +349,22 @@ function buildShowCommand() {
             if (options.quiet) {
                 process.exit(0);
             }
+            const [issueState, issueDiscussion] = await Promise.all([
+                client.getIssueState(issue.id),
+                client.getIssueDiscussion(issue.id, 500),
+            ]);
             if (options.json) {
-                console.log(JSON.stringify(issue, null, 2));
+                console.log(JSON.stringify({
+                    issue,
+                    state: issueState,
+                    discussion: issueDiscussion,
+                }, null, 2));
                 return;
             }
-            printIssueDetail(issue);
+            printIssueDetail(issue, {
+                state: issueState,
+                discussion: issueDiscussion,
+            });
         }
         catch (error) {
             if (options.quiet)

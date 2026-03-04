@@ -364,6 +364,19 @@ class ClawIQClient {
         }
         return semanticEventToIssue(event);
     }
+    async getIssueState(issueID) {
+        const query = new URLSearchParams({ issue_id: issueID }).toString();
+        const response = await this.request('GET', `/v1/issues/state?${query}`);
+        return response.state ?? null;
+    }
+    async getIssueDiscussion(issueID, limit = 500) {
+        const params = new URLSearchParams({
+            issue_id: issueID,
+            limit: Math.max(1, Math.min(limit, 500)).toString(),
+        });
+        const response = await this.request('GET', `/v1/lenny/chat/issue?${params.toString()}`);
+        return response || null;
+    }
 }
 exports.ClawIQClient = ClawIQClient;
 //# sourceMappingURL=api.js.map

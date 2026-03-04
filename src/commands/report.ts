@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import Table from 'cli-table3';
 import ora from 'ora';
-import { Issue, IssueImpact } from '../api.js';
+import { Issue, IssueImpact, IssueStateRecord, LennyIssueDiscussion } from '../api.js';
 import { buildClient } from '../client.js';
 import { resolveTimeRange } from '../time.js';
 import { loadConfig } from '../config.js';
@@ -49,13 +49,38 @@ function isNotFoundError(error: unknown): boolean {
   return error instanceof Error && error.message.includes('API error (404)');
 }
 
-function printIssueDetail(issue: Issue): void {
+function formatIssueStatus(state: IssueStateRecord | null): string {
+  if (!state) {
+    return chalk.green('open');
+  }
+
+  const normalized = (state.status || '').toLowerCase();
+  if (normalized === 'resolved') return chalk.green('resolved');
+  if (normalized === 'dismissed') return chalk.dim('dismissed');
+  if (normalized === 'not_helpful') return chalk.yellow('not_helpful');
+  return chalk.green(normalized || 'open');
+}
+
+function printIssueDetail(
+  issue: Issue,
+  context?: {
+    state: IssueStateRecord | null;
+    discussion: LennyIssueDiscussion | null;
+  },
+): void {
+  const state = context?.state ?? null;
+  const discussion = context?.discussion ?? null;
+
   console.log('');
   console.log(chalk.bold(`Issue: ${issue.title}`));
   console.log(chalk.dim('─'.repeat(60)));
   console.log(`  ${chalk.dim('ID:')}       ${issue.id}`);
   console.log(`  ${chalk.dim('Time:')}     ${new Date(issue.timestamp).toLocaleString()}`);
   console.log(`  ${chalk.dim('Impact:')}   ${formatImpact(issue.impact)}`);
+  console.log(`  ${chalk.dim('Status:')}   ${formatIssueStatus(state)}`);
+  if (state?.last_signal) {
+    console.log(`  ${chalk.dim('Signal:')}   ${state.last_signal}`);
+  }
   console.log(`  ${chalk.dim('Agent:')}    ${issue.target_agent}`);
   if (issue.agent_id) {
     console.log(`  ${chalk.dim('Reporter:')} ${issue.agent_id}`);
@@ -84,6 +109,26 @@ function printIssueDetail(issue: Issue): void {
     console.log(chalk.dim('  Evidence:'));
     for (const line of issue.evidence.split('\n')) {
       console.log(`    ${chalk.dim(line)}`);
+    }
+  }
+
+  console.log('');
+  console.log(chalk.dim('  Discussion Transcript:'));
+  if (!discussion?.conversation || discussion.messages.length === 0) {
+    console.log(chalk.dim('    (no discussion history yet)'));
+  } else {
+    console.log(`    ${chalk.dim('Thread:')} ${discussion.conversation.title}`);
+    for (const message of discussion.messages) {
+      const ts = new Date(message.created_at).toLocaleString();
+      const role = message.role === 'assistant' ? 'Lenny' : 'User';
+      const roleColor = message.role === 'assistant' ? chalk.magenta : chalk.cyan;
+      console.log(`    ${chalk.dim(`[${ts}]`)} ${roleColor(role)}${chalk.dim(':')}`);
+      for (const line of (message.content || '').split('\n')) {
+        console.log(`      ${line}`);
+      }
+      if (message.status === 'failed' && message.error_message) {
+        console.log(`      ${chalk.red(`(failed: ${message.error_message})`)}`);
+      }
     }
   }
 
@@ -343,12 +388,24 @@ function buildShowCommand(): Command {
           process.exit(0);
         }
 
+        const [issueState, issueDiscussion] = await Promise.all([
+          client.getIssueState(issue.id),
+          client.getIssueDiscussion(issue.id, 500),
+        ]);
+
         if (options.json) {
-          console.log(JSON.stringify(issue, null, 2));
+          console.log(JSON.stringify({
+            issue,
+            state: issueState,
+            discussion: issueDiscussion,
+          }, null, 2));
           return;
         }
 
-        printIssueDetail(issue);
+        printIssueDetail(issue, {
+          state: issueState,
+          discussion: issueDiscussion,
+        });
       } catch (error) {
         if (options.quiet) process.exit(1);
         handleError(error);

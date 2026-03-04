@@ -240,6 +240,45 @@ export interface IssuesResponse {
   total: number;
 }
 
+export type IssueStatus = 'open' | 'dismissed' | 'resolved' | 'not_helpful';
+
+export interface IssueStateRecord {
+  issue_id: string;
+  status: IssueStatus;
+  last_signal?: string;
+  updated_at: string;
+}
+
+export interface LennyDiscussionConversation {
+  id: string;
+  account_id?: string;
+  agent_id: string;
+  title: string;
+  issue_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LennyDiscussionMessage {
+  id: string;
+  conversation_id: string;
+  agent_id: string;
+  role: string;
+  direction: string;
+  content: string;
+  status: string;
+  error_message?: string;
+  replied_to_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LennyIssueDiscussion {
+  issue_id: string;
+  conversation?: LennyDiscussionConversation;
+  messages: LennyDiscussionMessage[];
+}
+
 interface ServerMetricsPayload {
   hostname: string;
   cpu_percent: number;
@@ -638,6 +677,27 @@ export class ClawIQClient {
       throw new Error(`Event ${issueID} is not an issue`);
     }
     return semanticEventToIssue(event);
+  }
+
+  async getIssueState(issueID: string): Promise<IssueStateRecord | null> {
+    const query = new URLSearchParams({ issue_id: issueID }).toString();
+    const response = await this.request<{ state?: IssueStateRecord | null }>(
+      'GET',
+      `/v1/issues/state?${query}`
+    );
+    return response.state ?? null;
+  }
+
+  async getIssueDiscussion(issueID: string, limit = 500): Promise<LennyIssueDiscussion | null> {
+    const params = new URLSearchParams({
+      issue_id: issueID,
+      limit: Math.max(1, Math.min(limit, 500)).toString(),
+    });
+    const response = await this.request<LennyIssueDiscussion>(
+      'GET',
+      `/v1/lenny/chat/issue?${params.toString()}`
+    );
+    return response || null;
   }
 
 }
