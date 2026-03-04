@@ -1,3 +1,6 @@
+import { execSync } from 'node:child_process';
+import { availableParallelism, cpus, freemem, hostname, loadavg, totalmem, uptime } from 'node:os';
+
 export interface ClawIQEvent {
   type: string;
   name: string;
@@ -237,6 +240,100 @@ export interface IssuesResponse {
   total: number;
 }
 
+interface ServerMetricsPayload {
+  hostname: string;
+  cpu_percent: number;
+  memory_mb: number;
+  memory_percent: number;
+  disk_mb: number;
+  disk_percent: number;
+  network_in_mb: number;
+  network_out_mb: number;
+  uptime_seconds: number;
+}
+
+const BYTES_PER_MB = 1024 * 1024;
+
+function clampPercent(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  if (value < 0) {
+    return 0;
+  }
+  if (value > 100) {
+    return 100;
+  }
+  return value;
+}
+
+function safeNumber(value: number): number {
+  return Number.isFinite(value) ? value : 0;
+}
+
+function estimateCPUPercent(): number {
+  const cores =
+    typeof availableParallelism === 'function'
+      ? availableParallelism()
+      : Math.max(cpus().length, 1);
+  const oneMinuteLoad = loadavg()[0] || 0;
+  return clampPercent((oneMinuteLoad / Math.max(cores, 1)) * 100);
+}
+
+function readDiskUsage(): { diskMB: number; diskPercent: number } {
+  try {
+    const output = execSync('df -kP /', {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const lines = output
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    if (lines.length < 2) {
+      return { diskMB: 0, diskPercent: 0 };
+    }
+
+    const parts = lines[1].split(/\s+/);
+    if (parts.length < 6) {
+      return { diskMB: 0, diskPercent: 0 };
+    }
+
+    const usedKb = Number(parts[2]);
+    const percentRaw = Number(parts[4].replace('%', ''));
+    const diskMB = Number.isFinite(usedKb) ? usedKb / 1024 : 0;
+    const diskPercent = Number.isFinite(percentRaw) ? clampPercent(percentRaw) : 0;
+    return {
+      diskMB: safeNumber(diskMB),
+      diskPercent,
+    };
+  } catch {
+    return { diskMB: 0, diskPercent: 0 };
+  }
+}
+
+function collectServerMetrics(): ServerMetricsPayload {
+  const totalMemoryBytes = totalmem();
+  const freeMemoryBytes = freemem();
+  const usedMemoryBytes = Math.max(totalMemoryBytes - freeMemoryBytes, 0);
+  const memoryMB = usedMemoryBytes / BYTES_PER_MB;
+  const memoryPercent =
+    totalMemoryBytes > 0 ? clampPercent((usedMemoryBytes / totalMemoryBytes) * 100) : 0;
+  const disk = readDiskUsage();
+
+  return {
+    hostname: hostname() || 'unknown',
+    cpu_percent: safeNumber(estimateCPUPercent()),
+    memory_mb: safeNumber(memoryMB),
+    memory_percent: memoryPercent,
+    disk_mb: safeNumber(disk.diskMB),
+    disk_percent: disk.diskPercent,
+    network_in_mb: 0,
+    network_out_mb: 0,
+    uptime_seconds: Math.max(Math.floor(uptime()), 0),
+  };
+}
+
 function semanticEventToIssue(event: SemanticEvent): Issue {
   let meta: IssueMeta | undefined;
   try {
@@ -309,6 +406,10 @@ export class ClawIQClient {
       throw new Error(`API error (${response.status}): ${message}`);
     }
 
+    if (this.shouldEmitServerMetrics(method, path)) {
+      await this.emitServerMetrics(headers);
+    }
+
     const json = await response.json() as { success?: boolean; error?: string; data?: T };
     // Handle wrapped responses from API service
     if (json.success !== undefined) {
@@ -318,6 +419,29 @@ export class ClawIQClient {
       return json.data as T;
     }
     return json as T;
+  }
+
+  private shouldEmitServerMetrics(method: string, path: string): boolean {
+    const normalizedMethod = method.toUpperCase();
+    if (normalizedMethod === 'GET' || normalizedMethod === 'HEAD' || normalizedMethod === 'OPTIONS') {
+      return false;
+    }
+    return !path.startsWith('/v1/server');
+  }
+
+  private async emitServerMetrics(baseHeaders: Record<string, string>): Promise<void> {
+    try {
+      const response = await fetch(`${this.endpoint}/v1/server`, {
+        method: 'POST',
+        headers: baseHeaders,
+        body: JSON.stringify(collectServerMetrics()),
+      });
+      if (!response.ok) {
+        return;
+      }
+    } catch {
+      // Best effort only: health metrics should not block primary API writes.
+    }
   }
 
   /**

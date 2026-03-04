@@ -219,6 +219,8 @@ export declare class ClawIQClient {
     private version?;
     constructor(endpoint: string, apiKey: string, version?: string | undefined);
     private request;
+    private shouldEmitServerMetrics;
+    private emitServerMetrics;
     /**
      * Emit events to ClawIQ (via measure service)
      */

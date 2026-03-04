@@ -1,6 +1,80 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClawIQClient = void 0;
+const node_child_process_1 = require("node:child_process");
+const node_os_1 = require("node:os");
+const BYTES_PER_MB = 1024 * 1024;
+function clampPercent(value) {
+    if (!Number.isFinite(value)) {
+        return 0;
+    }
+    if (value < 0) {
+        return 0;
+    }
+    if (value > 100) {
+        return 100;
+    }
+    return value;
+}
+function safeNumber(value) {
+    return Number.isFinite(value) ? value : 0;
+}
+function estimateCPUPercent() {
+    const cores = typeof node_os_1.availableParallelism === 'function'
+        ? (0, node_os_1.availableParallelism)()
+        : Math.max((0, node_os_1.cpus)().length, 1);
+    const oneMinuteLoad = (0, node_os_1.loadavg)()[0] || 0;
+    return clampPercent((oneMinuteLoad / Math.max(cores, 1)) * 100);
+}
+function readDiskUsage() {
+    try {
+        const output = (0, node_child_process_1.execSync)('df -kP /', {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+        });
+        const lines = output
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0);
+        if (lines.length < 2) {
+            return { diskMB: 0, diskPercent: 0 };
+        }
+        const parts = lines[1].split(/\s+/);
+        if (parts.length < 6) {
+            return { diskMB: 0, diskPercent: 0 };
+        }
+        const usedKb = Number(parts[2]);
+        const percentRaw = Number(parts[4].replace('%', ''));
+        const diskMB = Number.isFinite(usedKb) ? usedKb / 1024 : 0;
+        const diskPercent = Number.isFinite(percentRaw) ? clampPercent(percentRaw) : 0;
+        return {
+            diskMB: safeNumber(diskMB),
+            diskPercent,
+        };
+    }
+    catch {
+        return { diskMB: 0, diskPercent: 0 };
+    }
+}
+function collectServerMetrics() {
+    const totalMemoryBytes = (0, node_os_1.totalmem)();
+    const freeMemoryBytes = (0, node_os_1.freemem)();
+    const usedMemoryBytes = Math.max(totalMemoryBytes - freeMemoryBytes, 0);
+    const memoryMB = usedMemoryBytes / BYTES_PER_MB;
+    const memoryPercent = totalMemoryBytes > 0 ? clampPercent((usedMemoryBytes / totalMemoryBytes) * 100) : 0;
+    const disk = readDiskUsage();
+    return {
+        hostname: (0, node_os_1.hostname)() || 'unknown',
+        cpu_percent: safeNumber(estimateCPUPercent()),
+        memory_mb: safeNumber(memoryMB),
+        memory_percent: memoryPercent,
+        disk_mb: safeNumber(disk.diskMB),
+        disk_percent: disk.diskPercent,
+        network_in_mb: 0,
+        network_out_mb: 0,
+        uptime_seconds: Math.max(Math.floor((0, node_os_1.uptime)()), 0),
+    };
+}
 function semanticEventToIssue(event) {
     let meta;
     try {
@@ -66,6 +140,9 @@ class ClawIQClient {
             }
             throw new Error(`API error (${response.status}): ${message}`);
         }
+        if (this.shouldEmitServerMetrics(method, path)) {
+            await this.emitServerMetrics(headers);
+        }
         const json = await response.json();
         // Handle wrapped responses from API service
         if (json.success !== undefined) {
@@ -75,6 +152,28 @@ class ClawIQClient {
             return json.data;
         }
         return json;
+    }
+    shouldEmitServerMetrics(method, path) {
+        const normalizedMethod = method.toUpperCase();
+        if (normalizedMethod === 'GET' || normalizedMethod === 'HEAD' || normalizedMethod === 'OPTIONS') {
+            return false;
+        }
+        return !path.startsWith('/v1/server');
+    }
+    async emitServerMetrics(baseHeaders) {
+        try {
+            const response = await fetch(`${this.endpoint}/v1/server`, {
+                method: 'POST',
+                headers: baseHeaders,
+                body: JSON.stringify(collectServerMetrics()),
+            });
+            if (!response.ok) {
+                return;
+            }
+        }
+        catch {
+            // Best effort only: health metrics should not block primary API writes.
+        }
     }
     /**
      * Emit events to ClawIQ (via measure service)
