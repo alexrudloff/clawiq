@@ -13,7 +13,7 @@ const time_js_1 = require("../time.js");
 const config_js_1 = require("../config.js");
 const format_js_1 = require("../format.js");
 // ── Constants ──────────────────────────────────────────────────────
-const FINDING_IMPACTS = ['low', 'medium', 'high', 'critical'];
+const ISSUE_IMPACTS = ['low', 'medium', 'high', 'critical'];
 const IMPACT_DISPLAY = {
     low: (s) => chalk_1.default.dim(s),
     medium: (s) => chalk_1.default.yellow(s),
@@ -29,8 +29,8 @@ const IMPACT_ICONS = {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // ── Helpers ────────────────────────────────────────────────────────
 function validateImpact(value) {
-    if (!FINDING_IMPACTS.includes(value)) {
-        throw new Error(`Invalid impact "${value}". Must be one of: ${FINDING_IMPACTS.join(', ')}`);
+    if (!ISSUE_IMPACTS.includes(value)) {
+        throw new Error(`Invalid impact "${value}". Must be one of: ${ISSUE_IMPACTS.join(', ')}`);
     }
     return value;
 }
@@ -42,51 +42,51 @@ function formatImpact(impact) {
 function isNotFoundError(error) {
     return error instanceof Error && error.message.includes('API error (404)');
 }
-function printFindingDetail(finding) {
+function printIssueDetail(issue) {
     console.log('');
-    console.log(chalk_1.default.bold(`Finding: ${finding.title}`));
+    console.log(chalk_1.default.bold(`Issue: ${issue.title}`));
     console.log(chalk_1.default.dim('─'.repeat(60)));
-    console.log(`  ${chalk_1.default.dim('ID:')}       ${finding.id}`);
-    console.log(`  ${chalk_1.default.dim('Time:')}     ${new Date(finding.timestamp).toLocaleString()}`);
-    console.log(`  ${chalk_1.default.dim('Impact:')}   ${formatImpact(finding.impact)}`);
-    console.log(`  ${chalk_1.default.dim('Agent:')}    ${finding.target_agent}`);
-    if (finding.agent_id) {
-        console.log(`  ${chalk_1.default.dim('Reporter:')} ${finding.agent_id}`);
+    console.log(`  ${chalk_1.default.dim('ID:')}       ${issue.id}`);
+    console.log(`  ${chalk_1.default.dim('Time:')}     ${new Date(issue.timestamp).toLocaleString()}`);
+    console.log(`  ${chalk_1.default.dim('Impact:')}   ${formatImpact(issue.impact)}`);
+    console.log(`  ${chalk_1.default.dim('Agent:')}    ${issue.target_agent}`);
+    if (issue.agent_id) {
+        console.log(`  ${chalk_1.default.dim('Reporter:')} ${issue.agent_id}`);
     }
-    if (finding.description) {
+    if (issue.description) {
         console.log('');
         console.log(chalk_1.default.dim('  Description:'));
-        for (const line of finding.description.split('\n')) {
+        for (const line of issue.description.split('\n')) {
             console.log(`    ${line}`);
         }
     }
-    if (finding.patch) {
+    if (issue.patch) {
         console.log('');
         console.log(chalk_1.default.dim('  Suggested Patch:'));
         console.log(chalk_1.default.green('  ┌─'));
-        for (const line of finding.patch.split('\n')) {
+        for (const line of issue.patch.split('\n')) {
             console.log(chalk_1.default.green(`  │ ${line}`));
         }
         console.log(chalk_1.default.green('  └─'));
     }
-    if (finding.evidence) {
+    if (issue.evidence) {
         console.log('');
         console.log(chalk_1.default.dim('  Evidence:'));
-        for (const line of finding.evidence.split('\n')) {
+        for (const line of issue.evidence.split('\n')) {
             console.log(`    ${chalk_1.default.dim(line)}`);
         }
     }
     console.log('');
 }
-function printFindingsCompact(findings) {
-    for (const f of findings) {
-        const time = new Date(f.timestamp).toLocaleTimeString();
-        const impact = formatImpact(f.impact);
-        const agent = chalk_1.default.dim(f.target_agent);
-        console.log(`${chalk_1.default.dim(time)} ${impact} ${agent} ${f.title}`);
+function printIssuesCompact(issues) {
+    for (const issue of issues) {
+        const time = new Date(issue.timestamp).toLocaleTimeString();
+        const impact = formatImpact(issue.impact);
+        const agent = chalk_1.default.dim(issue.target_agent);
+        console.log(`${chalk_1.default.dim(time)} ${impact} ${agent} ${issue.title}`);
     }
 }
-function printFindingsTable(findings) {
+function printIssuesTable(issues) {
     const table = new cli_table3_1.default({
         head: [
             chalk_1.default.dim('Time'),
@@ -99,28 +99,28 @@ function printFindingsTable(findings) {
         wordWrap: true,
         colWidths: [22, 12, 14, 40, 28],
     });
-    for (const f of findings) {
+    for (const issue of issues) {
         table.push([
-            chalk_1.default.dim(new Date(f.timestamp).toLocaleString()),
-            formatImpact(f.impact),
-            f.target_agent,
-            f.title,
-            chalk_1.default.dim(f.id.slice(0, 24) + '…'),
+            chalk_1.default.dim(new Date(issue.timestamp).toLocaleString()),
+            formatImpact(issue.impact),
+            issue.target_agent,
+            issue.title,
+            chalk_1.default.dim(issue.id.slice(0, 24) + '…'),
         ]);
     }
     console.log(table.toString());
 }
 // ── Subcommands ────────────────────────────────────────────────────
-function buildFindingCommand() {
-    return new commander_1.Command('finding')
-        .description('Submit a finding for an agent')
-        .requiredOption('--agent <id>', 'Target agent the finding is about')
-        .requiredOption('--impact <level>', `Impact: ${FINDING_IMPACTS.join(', ')}`)
-        .requiredOption('--title <text>', 'Short description of the finding')
+function buildIssueCommand() {
+    return new commander_1.Command('issue')
+        .description('Submit an issue for an agent')
+        .requiredOption('--agent <id>', 'Target agent the issue is about')
+        .requiredOption('--impact <level>', `Impact: ${ISSUE_IMPACTS.join(', ')}`)
+        .requiredOption('--title <text>', 'Short description of the issue')
         .option('--description <text>', 'Detailed explanation')
         .option('--patch <text>', 'Suggested fix or behavioral patch text')
         .option('--evidence <text>', 'Supporting data or observations')
-        .option('--reporter <id>', 'Agent submitting the finding (defaults to config default)')
+        .option('--reporter <id>', 'Agent submitting the issue (defaults to config default)')
         .option('--api-key <key>', 'ClawIQ API key')
         .option('--json', 'Output as JSON')
         .option('-q, --quiet', 'Suppress output')
@@ -140,12 +140,12 @@ function buildFindingCommand() {
             for (const [field, max] of Object.entries(limits)) {
                 const val = options[field];
                 if (val && val.length > max) {
-                    console.error(chalk_1.default.red(`Error: --${field} exceeds ${max} character limit (got ${val.length}). One finding per report — keep it focused.`));
+                    console.error(chalk_1.default.red(`Error: --${field} exceeds ${max} character limit (got ${val.length}). One issue per report — keep it focused.`));
                     process.exit(1);
                 }
             }
-            const spinner = options.quiet ? null : (0, ora_1.default)('Submitting finding...').start();
-            const result = await client.submitFinding({
+            const spinner = options.quiet ? null : (0, ora_1.default)('Submitting issue...').start();
+            const result = await client.submitIssue({
                 agent: reporter,
                 targetAgent: options.agent,
                 impact,
@@ -160,7 +160,7 @@ function buildFindingCommand() {
                 console.log(JSON.stringify({
                     accepted: result.accepted,
                     event_ids: result.event_ids,
-                    finding: {
+                    issue: {
                         agent: options.agent,
                         impact,
                         title: options.title,
@@ -171,7 +171,7 @@ function buildFindingCommand() {
             if (!options.quiet) {
                 if (result.accepted > 0) {
                     console.log(chalk_1.default.green('✓') +
-                        ` Finding submitted: ${chalk_1.default.cyan(result.event_ids[0])}`);
+                        ` Issue submitted: ${chalk_1.default.cyan(result.event_ids[0])}`);
                     console.log(`  ${chalk_1.default.dim('agent:')}    ${options.agent}`);
                     console.log(`  ${chalk_1.default.dim('impact:')}   ${formatImpact(impact)}`);
                     console.log(`  ${chalk_1.default.dim('title:')}    ${options.title}`);
@@ -180,7 +180,7 @@ function buildFindingCommand() {
                     }
                 }
                 else {
-                    console.log(chalk_1.default.red('✗') + ' Finding rejected');
+                    console.log(chalk_1.default.red('✗') + ' Issue rejected');
                     if (result.errors?.length) {
                         for (const err of result.errors) {
                             console.log(`  ${chalk_1.default.red(err.code)}: ${err.message}`);
@@ -199,7 +199,7 @@ function buildFindingCommand() {
 }
 function buildListCommand() {
     return new commander_1.Command('list')
-        .description('List recent findings')
+        .description('List recent issues')
         .option('--since <time>', 'Start time (relative like 7d, or ISO)', '7d')
         .option('--until <time>', 'End time (relative or ISO)')
         .option('--agent <id>', 'Filter by target agent')
@@ -215,26 +215,26 @@ function buildListCommand() {
             const client = (0, client_js_1.buildClient)(options.apiKey);
             const range = (0, time_js_1.resolveTimeRange)(options.since, options.until, '7d');
             const offset = options.offset ?? 0;
-            const response = await client.getFindings({
+            const response = await client.getIssues({
                 since: range.start,
                 until: range.end,
                 targetAgent: options.agent,
                 limit: options.limit,
                 offset,
             });
-            let findings = response.findings;
+            let issues = response.issues;
             // Client-side impact filter
             const impactFilter = options.impact;
             if (impactFilter) {
                 const impact = validateImpact(impactFilter);
-                findings = findings.filter((f) => f.impact === impact);
+                issues = issues.filter((issue) => issue.impact === impact);
             }
             if (options.quiet) {
-                process.exit(findings.length > 0 ? 0 : 1);
+                process.exit(issues.length > 0 ? 0 : 1);
             }
             if (options.json) {
                 console.log(JSON.stringify({
-                    findings,
+                    issues,
                     total: response.total,
                     pagination: {
                         limit: options.limit,
@@ -243,18 +243,18 @@ function buildListCommand() {
                 }, null, 2));
                 return;
             }
-            if (findings.length === 0) {
-                console.log(chalk_1.default.dim('No findings found'));
+            if (issues.length === 0) {
+                console.log(chalk_1.default.dim('No issues found'));
                 return;
             }
             if (options.compact) {
-                printFindingsCompact(findings);
+                printIssuesCompact(issues);
             }
             else {
-                printFindingsTable(findings);
+                printIssuesTable(issues);
             }
-            console.log(chalk_1.default.dim(`\nShowing ${findings.length} finding(s) (limit ${options.limit}, offset ${offset})`));
-            if (findings.length === options.limit) {
+            console.log(chalk_1.default.dim(`\nShowing ${issues.length} issue(s) (limit ${options.limit}, offset ${offset})`));
+            if (issues.length === options.limit) {
                 console.log(chalk_1.default.dim(`Next page: --offset ${offset + options.limit}`));
             }
         }
@@ -267,19 +267,19 @@ function buildListCommand() {
 }
 function buildShowCommand() {
     return new commander_1.Command('show')
-        .description('Show details of a specific finding')
-        .argument('<finding-id>', 'Finding ID (or prefix)')
+        .description('Show details of a specific issue')
+        .argument('<issue-id>', 'Issue ID (or prefix)')
         .option('--api-key <key>', 'ClawIQ API key')
         .option('--json', 'Output as JSON')
         .option('-q, --quiet', 'Suppress output')
-        .action(async (findingId, options) => {
+        .action(async (issueId, options) => {
         try {
             const client = (0, client_js_1.buildClient)(options.apiKey);
-            const normalizedID = findingId.trim();
-            let finding;
+            const normalizedID = issueId.trim();
+            let issue;
             if (UUID_RE.test(normalizedID)) {
                 try {
-                    finding = await client.getFindingByID(normalizedID);
+                    issue = await client.getIssueByID(normalizedID);
                 }
                 catch (error) {
                     if (!isNotFoundError(error)) {
@@ -289,16 +289,16 @@ function buildShowCommand() {
             }
             else {
                 // Prefix lookup fallback for convenience.
-                const response = await client.getFindings({
+                const response = await client.getIssues({
                     since: '365d',
                     limit: 5000,
                 });
-                finding = response.findings.find((f) => f.id.startsWith(normalizedID));
+                issue = response.issues.find((entry) => entry.id.startsWith(normalizedID));
             }
-            if (!finding) {
+            if (!issue) {
                 if (options.quiet)
                     process.exit(1);
-                console.error(chalk_1.default.red(`Finding not found: ${findingId}`));
+                console.error(chalk_1.default.red(`Issue not found: ${issueId}`));
                 if (!UUID_RE.test(normalizedID)) {
                     console.error(chalk_1.default.dim('Try a full UUID for exact lookup.'));
                 }
@@ -311,10 +311,10 @@ function buildShowCommand() {
                 process.exit(0);
             }
             if (options.json) {
-                console.log(JSON.stringify(finding, null, 2));
+                console.log(JSON.stringify(issue, null, 2));
                 return;
             }
-            printFindingDetail(finding);
+            printIssueDetail(issue);
         }
         catch (error) {
             if (options.quiet)
@@ -326,8 +326,8 @@ function buildShowCommand() {
 // ── Main command ───────────────────────────────────────────────────
 function createReportCommand() {
     const cmd = new commander_1.Command('report')
-        .description('Submit and query agent performance findings');
-    cmd.addCommand(buildFindingCommand());
+        .description('Submit and query agent performance issues');
+    cmd.addCommand(buildIssueCommand());
     cmd.addCommand(buildListCommand());
     cmd.addCommand(buildShowCommand());
     return cmd;

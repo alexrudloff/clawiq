@@ -130,8 +130,8 @@ describe('Events', () => {
     console.log(`  → ${data.data.events.length} events returned`);
   });
 
-  it('GET /v1/events?type=finding returns findings', async () => {
-    const res = await fetch(`${API_BASE}/v1/events?type=finding&since=7d&limit=10`, {
+  it('GET /v1/events?type=issue returns issues', async () => {
+    const res = await fetch(`${API_BASE}/v1/events?type=issue&since=7d&limit=10`, {
       headers: { 'Authorization': `Bearer ${apiToken}` },
     });
 
@@ -139,7 +139,7 @@ describe('Events', () => {
     expect(res.status).toBe(200);
     expect(data.success).toBe(true);
     expect(Array.isArray(data.data.events)).toBe(true);
-    console.log(`  → ${data.data.events.length} findings returned`);
+    console.log(`  → ${data.data.events.length} issues returned`);
   });
 
   it('JWT and API key return same account data', async () => {
@@ -177,15 +177,15 @@ describe('Traces', () => {
   });
 });
 
-// ── Findings ──────────────────────────────────────────────────────
-// Findings are stored as events with type=finding.
-// Use POST /v1/events with type:"finding" to create,
-// GET /v1/events?type=finding to retrieve.
+// ── Issues ────────────────────────────────────────────────────────
+// Issues are stored as events with type=issue.
+// Use POST /v1/events with type:"issue" to create,
+// GET /v1/events?type=issue to retrieve.
 
-describe('Findings', () => {
-  let findingEventId: string;
+describe('Issues', () => {
+  let issueEventId: string;
 
-  it('POST /v1/events creates a finding event', async () => {
+  it('POST /v1/events creates an issue event', async () => {
     const res = await fetch(`${API_BASE}/v1/events`, {
       method: 'POST',
       headers: {
@@ -194,15 +194,15 @@ describe('Findings', () => {
       },
       body: JSON.stringify({
         events: [{
-          type: 'finding',
-          name: 'api-integration-test-finding',
+          type: 'issue',
+          name: 'api-integration-test-issue',
           source: 'agent',
           severity: 'info',
           agent_id: 'friday',
           meta: {
             target_agent: 'friday',
-            impact: 'low',
-            title: 'API integration test finding',
+            issue_impact: 'low',
+            title: 'API integration test issue',
             description: 'Created by automated API tests. Safe to ignore.',
             evidence: 'Test run at ' + new Date().toISOString(),
           },
@@ -214,12 +214,12 @@ describe('Findings', () => {
     expect(res.status).toBe(200);
     expect(data.accepted).toBe(1);
     expect(data.event_ids).toHaveLength(1);
-    findingEventId = data.event_ids[0];
-    console.log(`  → finding event created: ${findingEventId}`);
+    issueEventId = data.event_ids[0];
+    console.log(`  → issue event created: ${issueEventId}`);
   });
 
-  it('GET /v1/events?type=finding returns findings', async () => {
-    const res = await fetch(`${API_BASE}/v1/events?type=finding&since=7d&limit=10`, {
+  it('GET /v1/events?type=issue returns issues', async () => {
+    const res = await fetch(`${API_BASE}/v1/events?type=issue&since=7d&limit=10`, {
       headers: { 'Authorization': `Bearer ${apiToken}` },
     });
 
@@ -227,7 +227,7 @@ describe('Findings', () => {
     expect(res.status).toBe(200);
     expect(data.success).toBe(true);
     expect(Array.isArray(data.data.events)).toBe(true);
-    console.log(`  → ${data.data.events.length} findings returned`);
+    console.log(`  → ${data.data.events.length} issues returned`);
   });
 });
 

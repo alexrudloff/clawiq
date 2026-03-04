@@ -8,7 +8,7 @@ Agent intelligence for [OpenClaw](https://github.com/alexrudloff/openclaw).
 
 ClawIQ is the monitoring layer for OpenClaw. It collects OTEL traces, semantic events, and error data from your agents, then surfaces insights through a web dashboard and CLI.
 
-When you run `clawiq init`, Lex the Lobster is created in your OpenClaw workspace — a dedicated agent that watches over your system, runs nightly performance reviews, and submits findings on what's working and what isn't.
+When you run `clawiq init`, Lex the Lobster is created in your OpenClaw workspace — a dedicated agent that watches over your system, runs nightly performance reviews, and submits issues on what's working and what isn't.
 
 ## Installation
 
@@ -50,7 +50,7 @@ Send your OpenClaw agent a message, then check [clawiq.md](https://clawiq.md) to
 1. OpenClaw sends OTEL traces to ClawIQ via the diagnostics plugin
 2. Agents can optionally emit semantic events (`clawiq emit`) to annotate their work
 3. Lex runs nightly reviews on your local machine — combining OTEL data with session transcripts to find behavioral patterns
-4. Findings are submitted to your ClawIQ account with specific patches to improve your agents
+4. Issues are submitted to your ClawIQ account with specific patches to improve your agents
 
 ## CLI Commands
 
@@ -61,8 +61,8 @@ clawiq pull traces --since 24h       # OTEL traces
 clawiq pull errors --since 24h       # Error records
 clawiq pull semantic --since 24h     # Semantic events
 clawiq emit task <name>              # Emit a semantic event
-clawiq report finding --agent <id>   # Submit a finding
-clawiq report list --since 7d        # List recent findings
+clawiq report issue --agent <id>     # Submit an issue
+clawiq report list --since 7d        # List recent issues
 clawiq tags                          # List all tags
 ```
 

@@ -189,28 +189,28 @@ export interface EventMarker {
 export interface EventMarkersResponse {
     markers: EventMarker[];
 }
-export type FindingImpact = 'low' | 'medium' | 'high' | 'critical';
-export interface FindingMeta {
+export type IssueImpact = 'low' | 'medium' | 'high' | 'critical';
+export interface IssueMeta {
     title: string;
     description?: string;
     patch?: string;
     evidence?: string;
     target_agent: string;
-    finding_impact?: FindingImpact;
+    issue_impact?: IssueImpact;
 }
-export interface Finding {
+export interface Issue {
     id: string;
     timestamp: string;
     agent_id?: string;
     target_agent: string;
-    impact: FindingImpact;
+    impact: IssueImpact;
     title: string;
     description?: string;
     patch?: string;
     evidence?: string;
 }
-export interface FindingsResponse {
-    findings: Finding[];
+export interface IssuesResponse {
+    issues: Issue[];
     total: number;
 }
 export declare class ClawIQClient {
@@ -235,29 +235,29 @@ export declare class ClawIQClient {
     getErrors(params: ErrorsQueryParams): Promise<ErrorsResponse>;
     getEventMarkers(hours?: number): Promise<EventMarkersResponse>;
     /**
-     * Submit a finding as a semantic event with type='finding'.
+     * Submit an issue as a semantic event with type='issue'.
      * Uses the existing emit endpoint; backend can add a dedicated endpoint later.
      */
-    submitFinding(finding: {
+    submitIssue(issue: {
         agent: string;
         targetAgent: string;
-        impact: FindingImpact;
+        impact: IssueImpact;
         title: string;
         description?: string;
         patch?: string;
         evidence?: string;
     }): Promise<EmitResponse>;
     /**
-     * Query findings (semantic events with type='finding').
+     * Query issues (semantic events with type='issue').
      */
-    getFindings(params: {
+    getIssues(params: {
         since?: string;
         until?: string;
         agent?: string;
         targetAgent?: string;
         limit?: number;
         offset?: number;
-    }): Promise<FindingsResponse>;
-    getFindingByID(findingID: string): Promise<Finding>;
+    }): Promise<IssuesResponse>;
+    getIssueByID(issueID: string): Promise<Issue>;
 }
 //# sourceMappingURL=api.d.ts.map

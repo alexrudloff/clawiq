@@ -207,46 +207,46 @@ export interface EventMarkersResponse {
 }
 
 
-// ── Finding types ─────────────────────────────────────────────────
+// ── Issue types ───────────────────────────────────────────────────
 
-export type FindingImpact = 'low' | 'medium' | 'high' | 'critical';
+export type IssueImpact = 'low' | 'medium' | 'high' | 'critical';
 
-export interface FindingMeta {
+export interface IssueMeta {
   title: string;
   description?: string;
   patch?: string;
   evidence?: string;
   target_agent: string;
-  finding_impact?: FindingImpact;
+  issue_impact?: IssueImpact;
 }
 
-export interface Finding {
+export interface Issue {
   id: string;
   timestamp: string;
   agent_id?: string;
   target_agent: string;
-  impact: FindingImpact;
+  impact: IssueImpact;
   title: string;
   description?: string;
   patch?: string;
   evidence?: string;
 }
 
-export interface FindingsResponse {
-  findings: Finding[];
+export interface IssuesResponse {
+  issues: Issue[];
   total: number;
 }
 
-function semanticEventToFinding(event: SemanticEvent): Finding {
-  let meta: FindingMeta | undefined;
+function semanticEventToIssue(event: SemanticEvent): Issue {
+  let meta: IssueMeta | undefined;
   try {
-    meta = (typeof event.meta === 'string' ? JSON.parse(event.meta) : event.meta) as FindingMeta | undefined;
+    meta = (typeof event.meta === 'string' ? JSON.parse(event.meta) : event.meta) as IssueMeta | undefined;
   } catch {
     meta = undefined;
   }
 
-  const rawImpact = (meta?.finding_impact || '').toLowerCase();
-  const impact: FindingImpact =
+  const rawImpact = (meta?.issue_impact || '').toLowerCase();
+  const impact: IssueImpact =
     rawImpact === 'low' || rawImpact === 'medium' || rawImpact === 'high' || rawImpact === 'critical'
       ? rawImpact
       : event.severity === 'error'
@@ -431,35 +431,35 @@ export class ClawIQClient {
   }
 
   /**
-   * Submit a finding as a semantic event with type='finding'.
+   * Submit an issue as a semantic event with type='issue'.
    * Uses the existing emit endpoint; backend can add a dedicated endpoint later.
    */
-  async submitFinding(finding: {
+  async submitIssue(issue: {
     agent: string;
     targetAgent: string;
-    impact: FindingImpact;
+    impact: IssueImpact;
     title: string;
     description?: string;
     patch?: string;
     evidence?: string;
   }): Promise<EmitResponse> {
     const event: ClawIQEvent = {
-      type: 'finding',
-      name: 'agent-finding',
+      type: 'issue',
+      name: 'agent-issue',
       source: 'agent',
-      severity: finding.impact === 'critical' ? 'error'
-        : finding.impact === 'high' ? 'error'
-        : finding.impact === 'medium' ? 'warn'
+      severity: issue.impact === 'critical' ? 'error'
+        : issue.impact === 'high' ? 'error'
+        : issue.impact === 'medium' ? 'warn'
         : 'info',
-      agent_id: finding.agent,
-      target: finding.targetAgent,
+      agent_id: issue.agent,
+      target: issue.targetAgent,
       meta: {
-        title: finding.title,
-        description: finding.description,
-        patch: finding.patch,
-        evidence: finding.evidence,
-        target_agent: finding.targetAgent,
-        finding_impact: finding.impact,
+        title: issue.title,
+        description: issue.description,
+        patch: issue.patch,
+        evidence: issue.evidence,
+        target_agent: issue.targetAgent,
+        issue_impact: issue.impact,
       } as Record<string, unknown>,
     };
 
@@ -476,44 +476,44 @@ export class ClawIQClient {
   }
 
   /**
-   * Query findings (semantic events with type='finding').
+   * Query issues (semantic events with type='issue').
    */
-  async getFindings(params: {
+  async getIssues(params: {
     since?: string;
     until?: string;
     agent?: string;
     targetAgent?: string;
     limit?: number;
     offset?: number;
-  }): Promise<FindingsResponse> {
+  }): Promise<IssuesResponse> {
     const response = await this.getSemanticEvents({
       since: params.since,
       until: params.until,
       agent: params.agent,
-      type: 'finding',
+      type: 'issue',
       limit: params.limit,
       offset: params.offset,
     });
 
-    let findings: Finding[] = response.events.map(semanticEventToFinding);
+    let issues: Issue[] = response.events.map(semanticEventToIssue);
 
     // Client-side filter by target agent if specified
     if (params.targetAgent) {
-      findings = findings.filter((f) => f.target_agent === params.targetAgent);
+      issues = issues.filter((issue) => issue.target_agent === params.targetAgent);
     }
 
     return {
-      findings,
-      total: params.targetAgent ? findings.length : response.total,
+      issues,
+      total: params.targetAgent ? issues.length : response.total,
     };
   }
 
-  async getFindingByID(findingID: string): Promise<Finding> {
-    const event = await this.getSemanticEventByID(findingID);
-    if (event.type !== 'finding') {
-      throw new Error(`Event ${findingID} is not a finding`);
+  async getIssueByID(issueID: string): Promise<Issue> {
+    const event = await this.getSemanticEventByID(issueID);
+    if (event.type !== 'issue') {
+      throw new Error(`Event ${issueID} is not an issue`);
     }
-    return semanticEventToFinding(event);
+    return semanticEventToIssue(event);
   }
 
 }
