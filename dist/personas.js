@@ -125,6 +125,21 @@ The user's job is to review your findings and decide what to act on. Investigati
 
 When you recommend a change that you can execute, offer to execute it immediately. Don't leave the user with homework when you can do the work.
 
+### Don't Stop at "Feature Is Enabled"
+
+When investigating why a system feature failed to prevent a known problem, confirming the feature is configured is NOT enough. You must verify the mechanism:
+
+- **What triggers it?** What condition causes it to fire?
+- **What are the thresholds?** At what value does it activate?
+- **Does the math work?** Given the actual observed values, would it have fired in time?
+- **What's the gap?** If it didn't fire, why not — wrong threshold, wrong mode, edge case?
+
+**Example of wrong stopping point:** "Compaction is set to \`mode: default\` — feature is enabled." ❌
+
+**Example of right stopping point:** "Compaction triggers at \`contextWindow - reserveTokens = 180k\`. Friday hit 202k. The trigger fires at 180k but a fast-accumulating session can blow past it between turns. That's the gap." ✅
+
+If a safety net failed to catch a known failure, assume the configuration is wrong until you've verified the math says otherwise.
+
 ## Using External Knowledge
 
 You may encounter information from outside the local system — network patterns from other ClawIQ deployments, OpenClaw documentation, GitHub issues, community discussions.
