@@ -89,18 +89,21 @@ clawiq emit <type> <name> [options]
 \`\`\`
 Types: task, output, correction, error, feedback, health, note
 
-Common flags: \`--agent <id>\`, \`--severity <level>\`, \`--quality-tags <tags>\`, \`-q\` (quiet)
+Common flags: \`--severity <level>\`, \`--quality-tags <tags>\`, \`--agent <id>\` (optional override), \`-q\` (quiet)
+Agent resolution order: \`--agent\` → \`CLAWIQ_AGENT\` env → current \`workspace-<agent>\` path → default from \`clawiq init\`.
+
+**Run \`clawiq emit\` as a standalone shell command. Never wrap it in \`python3 -c\`, heredocs, or \`os.system(...)\` blocks.**
 
 **Emit as a reflex — before fixing, not after.**
 
 \`\`\`bash
 # Task completed successfully
-clawiq emit task "<task-name>" --agent <id> --action-tags "completed" -q
+clawiq emit task task-name -q --action-tags completed
 # You did something wrong — emit BEFORE fixing it
-clawiq emit error "<what-went-wrong>" --agent <id> --severity warn -q
-clawiq emit correction "<what-was-corrected>" --agent <id> --quality-tags "user-corrected" -q
+clawiq emit error what-went-wrong -q --severity warn
+clawiq emit correction what-was-corrected -q --quality-tags user-corrected
 # Unexpected observation
-clawiq emit note "<observation>" --agent <id> --severity info -q
+clawiq emit note observation -q --severity info
 \`\`\`
 
 **When to emit an error:** Any time you make a mistake — wrong output, bad assumption, hallucinated data, unverifiable claim stated as fact, work that needed to be undone. Emit the error, then fix it. Don't skip this step because you're focused on the fix.
@@ -163,12 +166,13 @@ You have \`clawiq emit\`
 ## Usage
 
 \`\`\`bash
-clawiq emit <type> <name> -q --agent <name> [options] &
+clawiq emit <type> <name> -q [options]
 \`\`\`
 
 - **ALWAYS use \`-q\`** — suppress output
-- **ALWAYS include \`--agent\`** — your OpenClaw agent config name (e.g., \`alex\`)
-- **ALWAYS run in background with \`&\`** — never block your response
+- **Use \`--agent\` only when needed** — normally auto-detected from workspace/default config
+- **Run as a standalone shell command** — never inside \`python3 -c\`, heredocs, or \`os.system(...)\`
+- **Foreground by default** — avoid \`&\` unless you explicitly need background execution
 
 ## Event Types
 
@@ -188,13 +192,13 @@ For multi-step tasks, emit start AND completion:
 
 \`\`\`bash
 # Starting a complex task
-clawiq emit task research-topic -q --agent alex --quality-tags started &
+clawiq emit task research-topic -q --quality-tags started
 
 # Completing the task
-clawiq emit task research-topic -q --agent alex &
+clawiq emit task research-topic -q
 
 # If it fails, emit error instead of completion
-clawiq emit error research-failed -q --agent alex --meta '{"reason":"API unavailable"}' &
+clawiq emit error research-failed -q --meta '{"reason":"API unavailable"}'
 \`\`\`
 
 **Use \`started\` tag for:**
@@ -208,8 +212,11 @@ clawiq emit error research-failed -q --agent alex --meta '{"reason":"API unavail
 ## Options
 
 **Required:**
-- \`--agent <name>\` - Your OpenClaw agent config name
 - \`-q\` - Quiet mode
+
+**Agent selection (optional override):**
+- \`--agent <name>\` - Explicit agent ID (highest priority)
+- \`CLAWIQ_AGENT=<name>\` - Environment override for shell/session
 
 **Common:**
 - \`--channel <ch>\` - imessage, telegram, slack, email
@@ -226,51 +233,54 @@ clawiq emit error research-failed -q --agent alex --meta '{"reason":"API unavail
 
 \`\`\`bash
 # Completed a task
-clawiq emit task explain-feature -q --agent alex --meta '{"topic":"OTEL"}' &
+clawiq emit task explain-feature -q --meta '{"topic":"OTEL"}'
 
 # Sent a message (output)
-clawiq emit output dinner-poll -q --agent alex --channel imessage --target "Family" &
+clawiq emit output dinner-poll -q --channel imessage --target "Family"
 
 # Handed off to sub-agent (just a task with meta)
-clawiq emit task spawn-research -q --agent alex --action-tags handoff --meta '{"sub_agent":"scout"}' &
+clawiq emit task spawn-research -q --action-tags handoff --meta '{"sub_agent":"scout"}'
 
 # Fixed my mistake
-clawiq emit correction wrong-date -q --agent alex --quality-tags self-corrected &
+clawiq emit correction wrong-date -q --quality-tags self-corrected
 
 # User corrected me
-clawiq emit correction name-fix -q --agent alex --quality-tags user-corrected &
+clawiq emit correction name-fix -q --quality-tags user-corrected
 
 # Something failed
-clawiq emit error api-timeout -q --agent alex --severity error --meta '{"service":"weather"}' &
+clawiq emit error api-timeout -q --severity error --meta '{"service":"weather"}'
 
 # User said thanks
-clawiq emit feedback positive -q --agent alex --channel imessage &
+clawiq emit feedback positive -q --channel imessage
 
 # User bookmarks something for later
-clawiq emit note interesting-pattern -q --agent alex --meta '{"observation":"model switches mid-session"}' &
+clawiq emit note interesting-pattern -q --meta '{"observation":"model switches mid-session"}'
 \`\`\`
 `;
 
 /**
- * Install the clawiq shared skill at workspace/skills/clawiq/SKILL.md.
- * Returns true if written, false if already exists.
+ * Install or refresh the shared clawiq skill at workspace/skills/clawiq/SKILL.md.
+ * Returns true if created/updated, false if already current.
  */
 export function installClawiqSkill(): boolean {
   const skillDir = join(SHARED_SKILLS_DIR, 'clawiq');
   const skillPath = join(skillDir, 'SKILL.md');
 
+  mkdirSync(skillDir, { recursive: true });
   if (existsSync(skillPath)) {
-    return false;
+    const existing = readFileSync(skillPath, 'utf-8');
+    if (existing === CLAWIQ_SKILL) {
+      return false;
+    }
   }
 
-  mkdirSync(skillDir, { recursive: true });
   writeFileSync(skillPath, CLAWIQ_SKILL);
   return true;
 }
 
 /**
- * Append ClawIQ CLI reference to a workspace's TOOLS.md.
- * Returns true if the file was updated, false if already present or no TOOLS.md.
+ * Upsert ClawIQ CLI reference inside a workspace's TOOLS.md.
+ * Returns true if the file was updated, false if already current or no TOOLS.md.
  */
 export function appendClawiqTools(workspacePath: string): boolean {
   const toolsPath = join(workspacePath, 'TOOLS.md');
@@ -279,11 +289,36 @@ export function appendClawiqTools(workspacePath: string): boolean {
   }
 
   const existing = readFileSync(toolsPath, 'utf-8');
-  if (existing.includes(CLAWIQ_TOOLS_MARKER)) {
+  const markerIndex = existing.indexOf(CLAWIQ_TOOLS_MARKER);
+  const replacement = CLAWIQ_TOOLS_SECTION.trimEnd();
+  let updated: string;
+
+  if (markerIndex === -1) {
+    updated = existing.trimEnd() + '\n' + replacement + '\n';
+  } else {
+    const endMarkerIndex = existing.indexOf(CLAWIQ_TOOLS_END_MARKER, markerIndex);
+    const sectionEnd = endMarkerIndex === -1
+      ? existing.length
+      : endMarkerIndex + CLAWIQ_TOOLS_END_MARKER.length;
+    const before = existing.slice(0, markerIndex).trimEnd();
+    const after = existing.slice(sectionEnd).trimStart();
+
+    updated = '';
+    if (before.length > 0) {
+      updated += before + '\n';
+    }
+    updated += replacement;
+    if (after.length > 0) {
+      updated += '\n' + after;
+    }
+    updated = updated.trimEnd() + '\n';
+  }
+
+  if (updated === existing) {
     return false;
   }
 
-  writeFileSync(toolsPath, existing.trimEnd() + '\n' + CLAWIQ_TOOLS_SECTION);
+  writeFileSync(toolsPath, updated);
   return true;
 }
 

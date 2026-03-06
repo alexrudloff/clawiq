@@ -14,6 +14,7 @@ const config_js_1 = require("../config.js");
 const openclaw_js_1 = require("../openclaw.js");
 const personas_js_1 = require("../personas.js");
 const openclaw_service_js_1 = require("../openclaw_service.js");
+const workspace_js_1 = require("../workspace.js");
 const clawiq_web_plugin_js_1 = require("../utils/clawiq-web-plugin.js");
 const otel_plugin_js_1 = require("../utils/otel-plugin.js");
 const openclaw_docs_sync_js_1 = require("../utils/openclaw-docs-sync.js");
@@ -98,6 +99,30 @@ function createUpdateCommand() {
         }
         catch (err) {
             docsSpinner.warn(`Could not refresh OpenClaw docs: ${err.message}`);
+        }
+        // Step 2c: Refresh shared ClawIQ skill + TOOLS.md snippets
+        const skillSpinner = (0, ora_1.default)('Refreshing ClawIQ skill and workspace tool hints...').start();
+        try {
+            const workspaces = (0, workspace_js_1.discoverWorkspaces)();
+            let toolsUpdated = 0;
+            for (const ws of workspaces) {
+                if (ws === workspaceDir) {
+                    continue;
+                }
+                if ((0, workspace_js_1.appendClawiqTools)(ws)) {
+                    toolsUpdated++;
+                }
+            }
+            const skillUpdated = (0, workspace_js_1.installClawiqSkill)();
+            if (toolsUpdated === 0 && !skillUpdated) {
+                skillSpinner.succeed('ClawIQ skill and TOOLS.md hints already current');
+            }
+            else {
+                skillSpinner.succeed(`Refreshed ClawIQ guidance (${toolsUpdated} workspace TOOLS.md updated${skillUpdated ? ', shared skill updated' : ''})`);
+            }
+        }
+        catch (err) {
+            skillSpinner.warn(`Could not refresh skill/tool guidance: ${err.message}`);
         }
         // Ensure diagnostics-otel plugin deps are installed
         await (0, otel_plugin_js_1.ensureOtelPluginDeps)();

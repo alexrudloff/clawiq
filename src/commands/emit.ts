@@ -17,6 +17,7 @@ const SEVERITIES = ['info', 'warn', 'error'];
 
 // Valid sources
 const SOURCES = ['agent', 'gateway', 'cron', 'channel', 'user'];
+const WORKSPACE_PREFIX = 'workspace-';
 
 function validateKebabCase(value: string, name: string): void {
   if (!/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(value)) {
@@ -71,13 +72,41 @@ function parseJson(value: string): Record<string, unknown> {
   }
 }
 
+function inferAgentFromCwd(cwd: string): string | undefined {
+  const parts = cwd.replace(/\\/g, '/').split('/').filter(Boolean);
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i];
+    if (part.startsWith(WORKSPACE_PREFIX) && part.length > WORKSPACE_PREFIX.length) {
+      return part.slice(WORKSPACE_PREFIX.length);
+    }
+  }
+  return undefined;
+}
+
+function resolveAgentId(explicitAgent: string | undefined, defaultAgent: string | undefined): string | undefined {
+  if (explicitAgent?.trim()) {
+    return explicitAgent.trim();
+  }
+
+  if (process.env.CLAWIQ_AGENT?.trim()) {
+    return process.env.CLAWIQ_AGENT.trim();
+  }
+
+  const inferred = inferAgentFromCwd(process.cwd());
+  if (inferred) {
+    return inferred;
+  }
+
+  return defaultAgent;
+}
+
 export function createEmitCommand(): Command {
   const cmd = new Command('emit')
     .description('Report a semantic event to ClawIQ')
     .argument('<type>', `Event type: ${EVENT_TYPES.join(', ')}`)
     .argument('<name>', 'Event name (kebab-case, e.g., "dinner-poll")')
     .option('--api-key <key>', 'ClawIQ API key')
-    .option('--agent <id>', 'Agent ID')
+    .option('--agent <id>', 'Agent ID override (otherwise auto-detected)')
     .option('--source <source>', `Event source: ${SOURCES.join(', ')}`, 'agent')
     .option('--severity <level>', `Severity: ${SEVERITIES.join(', ')}`, 'info')
     .option('--channel <channel>', 'Channel (e.g., imessage, telegram)')
@@ -130,6 +159,13 @@ export function createEmitCommand(): Command {
           throw new Error('Trace ID must be 32 hexadecimal characters');
         }
 
+        const resolvedAgent = resolveAgentId(options.agent, config.defaultAgent);
+        if (options.source === 'agent' && !resolvedAgent) {
+          throw new Error(
+            'Agent ID required for source=agent. Provide --agent, set CLAWIQ_AGENT, run from ~/.openclaw/workspace-<agent>, or run clawiq init to set a default agent.'
+          );
+        }
+
         const client = buildClient(options.apiKey);
 
         const event: ClawIQEvent = {
@@ -137,7 +173,7 @@ export function createEmitCommand(): Command {
           name,
           source: options.source,
           severity: options.severity,
-          agent_id: options.agent || config.defaultAgent,
+          agent_id: resolvedAgent,
           session_id: options.session,
           channel: options.channel,
           target: options.target,

@@ -18,6 +18,7 @@ const QUALITY_TAGS = ['hallucination', 'wrong-recipient', 'wrong-data', 'self-co
 const SEVERITIES = ['info', 'warn', 'error'];
 // Valid sources
 const SOURCES = ['agent', 'gateway', 'cron', 'channel', 'user'];
+const WORKSPACE_PREFIX = 'workspace-';
 function validateKebabCase(value, name) {
     if (!/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(value)) {
         throw new Error(`${name} must be lowercase kebab-case (e.g., "my-event-name")`);
@@ -64,13 +65,36 @@ function parseJson(value) {
         throw new Error(`Invalid JSON: ${value}`);
     }
 }
+function inferAgentFromCwd(cwd) {
+    const parts = cwd.replace(/\\/g, '/').split('/').filter(Boolean);
+    for (let i = parts.length - 1; i >= 0; i--) {
+        const part = parts[i];
+        if (part.startsWith(WORKSPACE_PREFIX) && part.length > WORKSPACE_PREFIX.length) {
+            return part.slice(WORKSPACE_PREFIX.length);
+        }
+    }
+    return undefined;
+}
+function resolveAgentId(explicitAgent, defaultAgent) {
+    if (explicitAgent?.trim()) {
+        return explicitAgent.trim();
+    }
+    if (process.env.CLAWIQ_AGENT?.trim()) {
+        return process.env.CLAWIQ_AGENT.trim();
+    }
+    const inferred = inferAgentFromCwd(process.cwd());
+    if (inferred) {
+        return inferred;
+    }
+    return defaultAgent;
+}
 function createEmitCommand() {
     const cmd = new commander_1.Command('emit')
         .description('Report a semantic event to ClawIQ')
         .argument('<type>', `Event type: ${EVENT_TYPES.join(', ')}`)
         .argument('<name>', 'Event name (kebab-case, e.g., "dinner-poll")')
         .option('--api-key <key>', 'ClawIQ API key')
-        .option('--agent <id>', 'Agent ID')
+        .option('--agent <id>', 'Agent ID override (otherwise auto-detected)')
         .option('--source <source>', `Event source: ${SOURCES.join(', ')}`, 'agent')
         .option('--severity <level>', `Severity: ${SEVERITIES.join(', ')}`, 'info')
         .option('--channel <channel>', 'Channel (e.g., imessage, telegram)')
@@ -117,13 +141,17 @@ function createEmitCommand() {
             if (options.trace && !/^[a-f0-9]{32}$/.test(options.trace)) {
                 throw new Error('Trace ID must be 32 hexadecimal characters');
             }
+            const resolvedAgent = resolveAgentId(options.agent, config.defaultAgent);
+            if (options.source === 'agent' && !resolvedAgent) {
+                throw new Error('Agent ID required for source=agent. Provide --agent, set CLAWIQ_AGENT, run from ~/.openclaw/workspace-<agent>, or run clawiq init to set a default agent.');
+            }
             const client = (0, client_js_1.buildClient)(options.apiKey);
             const event = {
                 type,
                 name,
                 source: options.source,
                 severity: options.severity,
-                agent_id: options.agent || config.defaultAgent,
+                agent_id: resolvedAgent,
                 session_id: options.session,
                 channel: options.channel,
                 target: options.target,

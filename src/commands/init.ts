@@ -208,17 +208,20 @@ export function createInitCommand(): Command {
         const workspaces = discoverWorkspaces();
         let updatedCount = 0;
         for (const ws of workspaces) {
+          if (ws === lennyWorkspaceDir) {
+            continue;
+          }
           if (appendClawiqTools(ws)) {
             updatedCount++;
           }
         }
         if (updatedCount > 0) {
-          console.log(chalk.green('\u2713') + ` ClawIQ added to TOOLS.md in ${updatedCount} workspace(s)`);
+          console.log(chalk.green('\u2713') + ` ClawIQ guidance updated in TOOLS.md for ${updatedCount} workspace(s)`);
         }
 
         // ── [6b] Install shared clawiq skill ─────────────────────
         if (installClawiqSkill()) {
-          console.log(chalk.green('\u2713') + ' ClawIQ skill installed at workspace/skills/clawiq/');
+          console.log(chalk.green('\u2713') + ' ClawIQ skill installed/refreshed at workspace/skills/clawiq/');
         }
 
         // ── [7] Save ClawIQ config ───────────────────────────────

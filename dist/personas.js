@@ -192,12 +192,12 @@ The human reviews and applies patches. Never auto-applied.
 ## ClawIQ Reporting (Mandatory)
 
 Emit events for system monitoring:
-- **Start review:** \\\`clawiq emit task performance-review -q --agent ${agent.id} --quality-tags started &\\\`
-- **Complete review:** \\\`clawiq emit task performance-review -q --agent ${agent.id} &\\\`
+- **Start review:** \\\`clawiq emit task performance-review -q --quality-tags started\\\`
+- **Complete review:** \\\`clawiq emit task performance-review -q\\\`
 - **Issue:** \\\`clawiq report issue --agent <target-agent> --impact <level> --title "..." --description "..." --patch "..." --evidence "..."\\\`
-- **Error:** \\\`clawiq emit error <name> -q --agent ${agent.id} --severity error --meta '{"reason":"..."}' &\\\`
+- **Error:** \\\`clawiq emit error <name> -q --severity error --meta '{"reason":"..."}'\\\`
 
-Run in background with \\\`&\\\`, always include \\\`-q --agent ${agent.id}\\\`.
+Always include \\\`-q\\\`. Run \\\`clawiq emit\\\` as a standalone shell command (never inside \\\`python3 -c\\\`, heredocs, or \\\`os.system(...)\\\` wrappers).
 `;
 }
 function generateAgents(agent) {
@@ -243,6 +243,20 @@ Capture what matters. Decisions, context, things to remember.
 - "Mental notes" don't survive session restarts. Files do.
 - When you learn a lesson, document it so future-you doesn't repeat it
 - **Text > Brain**
+
+## File Taxonomy
+
+This file (AGENTS.md) and TOOLS.md are injected in sub-agent and isolated sessions. SOUL.md is not.
+
+| File | Contains | Injected in sub-agents? |
+|------|----------|------------------------|
+| SOUL.md | Persona, tone, voice | No — main session only |
+| AGENTS.md | Operating rules, how to behave | Yes |
+| TOOLS.md | Tool instructions, patches, CLI conventions | Yes |
+| HEARTBEAT.md | Heartbeat checklist | No |
+| MEMORY.md | Long-term memory | No |
+
+**When writing issue patches:** specify which file the patch targets. Tool-usage and behavioral patches go in TOOLS.md. Operating-rule changes go in AGENTS.md. Persona/voice changes go in SOUL.md (but remember: those won't reach isolated sessions).
 
 ## Safety
 
@@ -296,7 +310,7 @@ Once per day (evening), run a full performance review. This is your core job.
 
 1. **Signal start:**
    \\\`\\\`\\\`bash
-   clawiq emit task performance-review -q --agent ${agent.id} --quality-tags started &
+   clawiq emit task performance-review -q --quality-tags started
    \\\`\\\`\\\`
 
 2. **Pull OTEL telemetry** — this is your index into what happened:
@@ -339,11 +353,12 @@ Once per day (evening), run a full performance review. This is your core job.
    \\\`\\\`\\\`
    - OTEL warning/error incidents must always produce an issue (low impact is fine if the blast radius is small)
    - If an incident recurs after being dismissed/resolved/not_helpful, file a new issue instead of suppressing it
+   - **When reviewing behavioral or tool-usage patches:** check the agent's \\\`TOOLS.md\\\` and \\\`AGENTS.md\\\` — not \\\`SOUL.md\\\`. Tool-usage patches live in TOOLS.md. Do NOT flag a missing patch in SOUL.md; it does not belong there, and SOUL.md is not injected in isolated/sub-agent sessions anyway.
    Also log a summary to \\\`memory/YYYY-MM-DD.md\\\` for your own continuity.
 
 6. **Signal completion:**
    \\\`\\\`\\\`bash
-   clawiq emit task performance-review -q --agent ${agent.id} &
+   clawiq emit task performance-review -q
    \\\`\\\`\\\`
 
 ### What You're Looking For
@@ -359,15 +374,35 @@ Once per day (evening), run a full performance review. This is your core job.
 function generateTools(agent) {
     return `# TOOLS.md - ${agent.name}'s Toolkit
 
+## OpenClaw Workspace File Taxonomy
+
+When investigating agent issues, know where to look:
+
+| File | Contains |
+|------|----------|
+| SOUL.md | Persona, tone, voice — NOT loaded in sub-agent/isolated sessions |
+| AGENTS.md | Operating rules, priorities, how to behave |
+| TOOLS.md | Tool instructions, operational patches, CLI conventions ← behavioral patches live here |
+| IDENTITY.md | Name, emoji, pronouns |
+| USER.md | Who the user is |
+| HEARTBEAT.md | Heartbeat checklist |
+| MEMORY.md | Long-term curated memory |
+
+**Rule:** When an agent has a tool-usage issue, the patch belongs in TOOLS.md — not SOUL.md.
+**Why it matters:** Isolated/sub-agent sessions only inject AGENTS.md and TOOLS.md. SOUL.md is not visible to them.
+
+---
+
 ## ClawIQ CLI (Telemetry)
 
 Full read/write access to ClawIQ telemetry data.
 
 ### Emit - Signal activity
 \\\`\\\`\\\`bash
-clawiq emit task performance-review -q --agent ${agent.id} --quality-tags started &
-clawiq emit task performance-review -q --agent ${agent.id} &
+clawiq emit task performance-review -q --quality-tags started
+clawiq emit task performance-review -q
 \\\`\\\`\\\`
+Run \\\`clawiq emit\\\` as a standalone shell command. Never wrap it in \\\`python3 -c\\\`, heredocs, or \\\`os.system(...)\\\`.
 
 ### Report - Submit issues
 \\\`\\\`\\\`bash
