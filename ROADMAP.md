@@ -2,9 +2,11 @@
 
 ## What ClawIQ is (architecturally)
 
-ClawIQ is the **control plane for AI employee teams**. The dashboard at `<company>.clawiq.md` is where customers hire, manage, and talk to their AI employees. ClawIQ manages credentials, enforces data scoping, and provides the audit trail — but the actual data proxy runs locally inside each instance so data requests never leave the customer's network.
+ClawIQ is the **control plane and data proxy for AI employee teams**. It manages the full lifecycle: hiring agents from a catalog, giving them personality and workspace, scoping their data access, scheduling their work, monitoring their performance, and providing the customer-facing dashboard.
 
-The execution backend (currently OpenClaw) runs the agents. ClawIQ tells them what to do and controls what data they can see. If the execution backend changes, the customer doesn't notice.
+ClawIQ drives agents via `acpx` — a lightweight process wrapper that speaks ACP (Agent Client Protocol) to Claude Code, Codex, and other compatible agent CLIs. The agent runtimes handle the hard parts (tool loops, retries, context management). ClawIQ handles everything around them (team management, data scoping, scheduling, monitoring, the customer dashboard).
+
+The customer authenticates Claude Code or Codex with their own subscription. ClawIQ orchestrates — it doesn't proxy model API calls or handle model auth.
 
 ### Full architecture
 
@@ -14,19 +16,20 @@ The execution backend (currently OpenClaw) runs the agents. ClawIQ tells them wh
 │  Dashboard (<company>.clawiq.md)                              │
 │  ├── Hire / fire / manage agents                              │
 │  ├── Define data access per role                              │
-│  ├── Connect data sources (OAuth flows, API keys)             │
-│  ├── Chat with agents                                         │
+│  ├── Connect data sources (API keys, OAuth)                   │
+│  ├── Chat room (watch agents work, talk to them)              │
 │  ├── Activity feed + audit log                                │
 │  ├── Lenny's issues + patches                                 │
 │  └── Cost tracking + budgets                                  │
 │                                                               │
 │  Control Plane API                                            │
 │  ├── Agent catalog (role templates)                           │
-│  ├── Command queue (hire/fire/config)                         │
+│  ├── Agent lifecycle (hire, fire, configure, schedule)         │
+│  ├── Scheduler (cron, heartbeats, periodic reviews)           │
 │  ├── Credential store (encrypted, synced to instances)        │
 │  ├── Scope definitions (which agents get which endpoints)     │
-│  ├── Telemetry receiver                                       │
-│  └── Audit log aggregator                                     │
+│  ├── Telemetry + audit log aggregator                         │
+│  └── Channel relay (future: Slack, Teams)                     │
 │                                                               │
 └──────────────────────────┬────────────────────────────────────┘
                            │
@@ -35,37 +38,41 @@ The execution backend (currently OpenClaw) runs the agents. ClawIQ tells them wh
                └── pushes: telemetry, audit logs, agent status
                            │
 ┌──────────────────────────┴────────────────────────────────────┐
-│  ClawIQ Instance                                              │
+│  ClawIQ Instance (Docker on Railway / VM / on-prem)           │
 │                                                               │
 │  ┌─────────────────────────────────────────────────────────┐  │
-│  │  Data Proxy (runs locally inside the instance)          │  │
+│  │  Data Proxy (local)                                     │  │
 │  │  ├── Credential vault (synced from platform, encrypted) │  │
 │  │  ├── Scope enforcement (deny by default)                │  │
-│  │  ├── Request logging (full audit trail, syncs to        │  │
-│  │  │   platform via poll)                                 │  │
-│  │  ├── Rate limiting                                      │  │
+│  │  ├── Request logging → syncs to platform                │  │
 │  │  └── Calls customer APIs using stored credentials       │  │
 │  └──────────────────────────┬──────────────────────────────┘  │
 │                              │                                 │
 │  ┌──────────────────────────┴──────────────────────────────┐  │
-│  │  Agent Runtime (OpenClaw)                               │  │
-│  │  ├── Estimator   → calls local data proxy               │  │
-│  │  ├── PM          → calls local data proxy               │  │
-│  │  ├── Accountant  → calls local data proxy               │  │
-│  │  └── Lenny       → calls local data proxy + CLI         │  │
-│  │                                                         │  │
-│  │  Agents have a ClawIQ token (not customer credentials)  │  │
-│  │  Agents call: localhost:{port}/data/{endpoint}          │  │
-│  │  Proxy enforces scope locally — no network hop          │  │
+│  │  Agent Executor (via acpx)                              │  │
+│  │  ├── Spawns acpx → drives Claude Code / Codex           │  │
+│  │  ├── Each agent has:                                    │  │
+│  │  │   ├── Named acpx session (persists between turns)    │  │
+│  │  │   ├── Workspace dir (/workspaces/{agent-id}/)        │  │
+│  │  │   ├── Personality files (SOUL.md, TOOLS.md, etc.)    │  │
+│  │  │   └── Memory (long-term + daily, in workspace)       │  │
+│  │  ├── Prompt in via stdin, NDJSON events out via stdout   │  │
+│  │  ├── Estimator, PM, Accountant, etc.                    │  │
+│  │  └── Lenny (scheduled, same acpx mechanism)             │  │
 │  └─────────────────────────────────────────────────────────┘  │
 │                                                               │
-│  ClawIQ CLI (telemetry, issues, session analysis)             │
+│  Agent CLIs (pre-installed in Docker image)                   │
+│  ├── claude (Claude Code) — user's subscription via OAuth     │
+│  ├── codex (Codex CLI) — user's subscription via OAuth        │
+│  └── ollama (future — local models)                           │
+│                                                               │
+│  ClawIQ CLI (telemetry, issue reporting)                      │
 │  Poll daemon (syncs with platform)                            │
-│  Model access (BYOK cloud, local, or ClawIQ-metered)         │
+│  Railway Volume at /workspaces (persistent across deploys)    │
 │                                                               │
 └──────────────────────────┬────────────────────────────────────┘
                            │
-               customer API calls (direct from instance)
+               customer API calls (from local proxy)
                            │
                ┌───────────┴───────────┐
                │  Customer Data Sources │
@@ -75,86 +82,75 @@ The execution backend (currently OpenClaw) runs the agents. ClawIQ tells them wh
                └───────────────────────┘
 ```
 
-### Data request flow
+### Agent model
+
+Each agent is an acpx session with a workspace directory:
 
 ```
-Agent (Estimator) wants project budget data:
-
-  1. Estimator calls:  GET localhost:9400/data/projects/42/budget
-                       Authorization: Bearer clawiq_agent_est_abc123
-
-  2. Local data proxy checks:
-     ├── Valid token?                              → yes
-     ├── This agent = Estimator?                   → yes
-     ├── /projects/*/budget in allowed endpoints?  → yes
-     ├── Log request (agent, endpoint, timestamp)
-     └── Forward to customer API:
-           GET https://customer-api.com/projects/42/budget
-           Authorization: Bearer <customer's API key from vault>
-
-  3. Customer API responds → proxy returns to agent
-
-  4. Audit log entry queued for next poll sync:
-     { agent: "estimator", endpoint: "/projects/42/budget",
-       status: 200, timestamp: "..." }
+/workspaces/est-001/                  # agent's cwd (persistent volume)
+├── SOUL.md                           # personality (generated from role template)
+├── AGENTS.md                         # operating rules
+├── TOOLS.md                          # available data proxy endpoints
+├── MEMORY.md                         # long-term curated memory
+├── memory/
+│   ├── 2026-03-18.md                 # daily session notes
+│   └── 2026-03-17.md
+└── files/                            # agent's scratchpad (drafts, analysis, etc.)
 ```
 
-```
-Agent (Estimator) tries to access invoices (not in scope):
+The agent CLI (Claude Code / Codex) reads these files natively — they're real files on disk, not a virtual filesystem. The workspace lives on a Railway Volume (persistent across deploys) or on-prem disk.
 
-  1. Estimator calls:  GET localhost:9400/data/invoices?status=overdue
+ClawIQ generates the personality files from the role template + customer context when an agent is hired. The agent can update its own memory and files during sessions — that's how it learns and persists context.
 
-  2. Local data proxy checks:
-     ├── /invoices in Estimator's allowed endpoints?  → NO
-     ├── Log denied request
-     ├── Return 403
-     └── Flag for Lenny (repeated 403s = issue)
-```
+The customer doesn't know about SOUL.md or workspace files. They see the agent's personality and capabilities in the dashboard. Under the hood, changes to an agent's configuration regenerate the workspace files.
 
-### Why the proxy runs in the instance (not the platform)
+### Model access
 
-- **Data sovereignty.** Data requests go directly from instance to customer API. For on-prem, data never leaves the building. If the proxy were in the cloud, every request would traverse the internet — breaking the core promise.
-- **No latency penalty.** Proxy is localhost. Agent makes 15 API calls to answer a question — zero extra network hops.
-- **Offline resilience.** If the ClawIQ platform goes down, agents keep working. Credentials are cached locally. Audit logs queue and sync when connection is restored.
-- **Credential security.** Credentials are synced from platform to instance (encrypted in transit and at rest). The platform is the source of truth; the instance has a local copy. Credential rotation happens in the platform and propagates on next poll.
+Agents run on the customer's own subscription or API keys:
 
-### How credentials flow
+- **Claude Code:** Customer authenticates with their Claude Pro/Max subscription. OAuth token cached in the instance. Usage counts against their subscription. This is legitimate — the actual `claude` CLI is running, authenticated by the user.
+- **Codex:** Same pattern — customer authenticates with their ChatGPT Plus/Pro subscription. OpenAI explicitly supports this in third-party contexts.
+- **API keys (BYOK):** For customers who prefer per-token billing or need programmatic access. Customer provides their Anthropic/OpenAI API key.
+- **ClawIQ-metered (future):** ClawIQ provides API access, meters usage, adds margin.
 
-```
-1. Customer connects API in dashboard
-   └── Enters credentials at <company>.clawiq.md
-   └── Platform encrypts and stores in credential store
+**The key distinction:** ClawIQ doesn't extract or proxy OAuth tokens. The actual agent CLI runs in the instance and authenticates directly with the provider. ClawIQ orchestrates the session via acpx/stdio — it never touches the auth flow.
 
-2. Instance polls platform
-   └── Receives encrypted credential bundle
-   └── Decrypts and stores in local vault
-   └── Local proxy uses credentials for upstream calls
+**Future: Local models.**
+- Ollama for on-prem instances
+- Routine tasks (Lenny health checks, simple lookups) on local models
+- Complex reasoning on cloud models
+- Not MVP
 
-3. Customer rotates credentials
-   └── Updates in dashboard
-   └── Platform pushes new bundle on next poll
-   └── Instance hot-swaps credentials (no agent restart)
-```
+### Scheduling
+
+ClawIQ handles all scheduling directly:
+- **Heartbeats:** Periodic health checks (configurable interval per agent)
+- **Cron:** Scheduled tasks (Lenny's nightly review, recurring reports)
+- **On-demand:** Dashboard chat, triggered by customer message
+- **Event-driven:** Lenny responds to scope violations, error spikes, etc.
+
+No external scheduler needed. The ClawIQ instance runs its own scheduler.
 
 ---
 
 ## MVP: Agent team on your API
 
-Customer provides a REST API. ClawIQ gives them a team of AI employees that query it through a local data proxy. Credentials stay in ClawIQ's vault, scoping is enforced, everything is logged.
+Customer provides a REST API. ClawIQ gives them a team of AI employees that query it through a local data proxy. No OpenClaw. No Docker complexity. Just ClawIQ calling Claude's API.
 
 ### What the customer gets
 
 - Dashboard at `<company>.clawiq.md`
 - Agent catalog — pre-configured roles to hire
-- Each agent scoped to specific endpoints (enforced locally at the proxy)
+- Each agent scoped to specific endpoints (enforced at the proxy)
 - Lenny reviewing every agent automatically
-- Audit log of every agent action and data request
-- Chat with any agent from the dashboard
+- Chat room — watch agents work, talk to them
+- Audit log of every action and data request
 
 ### What the customer provides
 
-- REST API base URL + auth credentials (stored in ClawIQ, never exposed to agents)
+- REST API base URL + auth credentials
 - Description of endpoints (or OpenAPI spec)
+- Claude or Codex subscription (or API key for BYOK)
 - Which roles they want and which endpoints each role can access
 
 ---
@@ -162,62 +158,100 @@ Customer provides a REST API. ClawIQ gives them a team of AI employees that quer
 ## MVP Build Phases
 
 ### Phase 1: Dashboard + onboarding (skeleton)
-_The product IS the dashboard. Build it first, even with mock data._
+_The product IS the dashboard. Build it first._
 
 - [ ] Auth (email/password or Google OAuth)
-- [ ] Onboarding flow: provide API URL + auth, describe endpoints, confirm
+- [ ] Onboarding: provide API URL + auth, describe endpoints, provide model API key
 - [ ] Team roster page (empty state → first hire)
-- [ ] Hire flow: browse catalog → pick role → assign endpoints → hire (queues command)
+- [ ] Hire flow: browse catalog → pick role → assign endpoints → hire
+- [ ] Chat room: message agents, see responses
 - [ ] Activity feed (placeholder)
 - [ ] Auto-branding: customer name
 
-### Phase 2: Data proxy + credential vault
-_The core of ClawIQ's security and scoping._
+### Phase 2: Agent executor (via acpx)
+_Driving Claude Code / Codex as agent runtimes._
 
-- [ ] Proxy service (runs inside instance): receives agent requests, validates scope, forwards to customer API
+ClawIQ doesn't reimplement the agent loop. It uses `acpx` (from the OpenClaw ecosystem) to drive Claude Code, Codex, or other ACP-compatible agent CLIs. Each agent is a named `acpx` session with a workspace directory.
+
+```
+ClawIQ spawns:
+  acpx --format json --json-strict --cwd /workspaces/est-001 \
+    claude prompt --session est-001-main --file -
+
+ClawIQ writes prompt to stdin (role context + memory + customer message)
+ClawIQ reads NDJSON events from stdout:
+  agent_message_chunk → stream to chat room
+  tool_call           → agent is working (log it)
+  usage_update        → token tracking
+  done                → turn complete
+```
+
+- [ ] Install `acpx`, `claude` (Claude Code), `codex` as npm packages in the Docker image
+- [ ] Agent executor service: spawns acpx per turn, manages sessions, parses NDJSON events
+- [ ] Prompt assembly: role template + personality + memory + tool definitions → written to stdin
+- [ ] Tool call routing: agent tool calls go through the local data proxy (via workspace config)
+- [ ] Session persistence: named acpx sessions persist between turns (filesystem-backed)
+- [ ] Workspace per agent: `/workspaces/{agent-id}/` — agent's cwd, files, scratchpad
+- [ ] Memory injection: long-term + daily memory assembled into the prompt context
+- [ ] Event streaming: NDJSON events relayed to dashboard chat room in real time
+- [ ] Multi-model support: `claude` or `codex` selected per agent config
+- [ ] User auth: customer logs into Claude Code / Codex with their own subscription (cached OAuth)
+
+### Phase 3: Data proxy + credential vault
+_Scoped data access with credential isolation._
+
+- [ ] Proxy service (runs in instance): agent requests → scope check → forward to customer API
 - [ ] Credential vault: encrypted storage, synced from platform
-- [ ] Agent tokens: per-agent bearer tokens scoped to allowed endpoints
-- [ ] Scope enforcement: endpoint allowlist per agent, deny everything else
-- [ ] Request logging: every request logged (agent, endpoint, status, timestamp)
-- [ ] 403 flagging: repeated violations trigger Lenny alerts
+- [ ] Agent tokens: per-agent scoped to allowed endpoints
+- [ ] Scope enforcement: deny by default
+- [ ] Request logging: every request logged
+- [ ] 403 flagging: repeated violations → Lenny alert
 
-### Phase 3: Agent catalog + provisioning
-_Making agents hirable._
+### Phase 4: Agent catalog + provisioning
+_Making agents hirable from the dashboard._
 
-- [ ] Catalog data model: role templates with identity, persona, capabilities, default scoping
+- [ ] Catalog data model: role templates with personality, capabilities, default scoping
 - [ ] Five MVP roles: Project Manager, Estimator, Compliance Officer, Accountant, Operations Analyst
-- [ ] TOOLS.md generation: role template + allowed proxy endpoints → agent-specific tool docs
-- [ ] Provisioning: create agent in execution backend + issue proxy token
-- [ ] Deprovisioning: remove agent, revoke proxy token, clean workspace
+- [ ] System prompt generation: role template + customer context → agent personality
+- [ ] Tool definition generation: role + allowed endpoints → tool schemas for Claude API
+- [ ] Provisioning: create agent record + workspace + proxy token
+- [ ] Deprovisioning: archive agent, revoke token
 
-### Phase 4: ClawIQ instance (Docker)
-_The execution environment._
+### Phase 5: Lenny
+_The built-in manager._
 
-- [ ] Docker Compose: execution backend (OpenClaw) + data proxy + ClawIQ CLI + Lenny + poll daemon
-- [ ] Execution backend pre-configured: tool deny-lists, sandbox mode, auth
-- [ ] Egress filtering: only allow ClawIQ platform + customer API (via proxy) + model APIs
-- [ ] Container hardening: read-only FS, non-root, cap_drop ALL, resource limits
-- [ ] Agents configured to call local proxy only
+- [ ] Lenny as a scheduled agent (cron-based, runs nightly + on-demand)
+- [ ] Reviews proxy audit logs for: errors, scope violations, cost spikes, stuck patterns
+- [ ] Reviews conversation quality (samples agent responses, checks for accuracy)
+- [ ] Files issues with specific findings and suggested fixes
+- [ ] Issues appear in dashboard with accept/dismiss/resolve workflow
 
-### Phase 5: Poll protocol
-_How instances and the platform stay in sync._
+### Deployment (Railway for MVP)
 
-- [ ] Instance → platform: agent status, telemetry, Lenny's issues, audit logs
-- [ ] Platform → instance: commands, credential bundles, scope config, catalog updates, chat messages
+The ClawIQ instance runs as a Docker container on Railway (Pro plan):
+
+```dockerfile
+FROM node:20-slim
+RUN npm install -g @anthropic-ai/claude-code @openai/codex acpx
+# ... install ClawIQ platform, proxy, CLI
+```
+
+- Railway Volume mounted at `/workspaces` (persistent agent workspaces)
+- Pro plan: up to 48 vCPU / 48 GB RAM, no execution timeout
+- Child process spawning (acpx → claude/codex) supported
+- Stdio pipes between processes supported
+- ~$160/month for a 4 vCPU / 8 GB container (per customer instance)
+- At scale: move to Fly.io or bare VMs for cost and control
+
+### Phase 6: Poll protocol + instance management
+_For when we need to run instances separately from the platform._
+
+- [ ] Instance ↔ platform sync: credentials, commands, telemetry, audit logs
 - [ ] Instance registration and authentication
-- [ ] Credential sync (encrypted bundle, hot-swap without restart)
-- [ ] Chat relay (short poll interval during active conversations — 2s, not 30s)
+- [ ] Credential sync (encrypted, hot-swap)
+- [ ] Chat relay (2s poll during active conversations)
 
-### Phase 6: Dashboard (full)
-_Wire everything up._
-
-- [ ] Team roster: live agent data from instance
-- [ ] Fire flow: select → confirm → decommission
-- [ ] Activity feed: real data from audit logs
-- [ ] Lenny's issues: synced from instance
-- [ ] Chat: messages relayed through poll (2s interval when active)
-- [ ] Audit log: searchable, filterable
-- [ ] Cost tracking: per-agent spend, budget limits, warnings
+**Note:** For MVP, the platform and instance can be the same process. The poll protocol becomes necessary when we need on-prem deployment or scale to multiple instances. Don't over-engineer this until it's needed.
 
 ---
 
@@ -225,45 +259,54 @@ _Wire everything up._
 
 | Component | Status | MVP role |
 |-----------|--------|----------|
-| ClawIQ CLI (emit, pull, report, session) | Working | Ships inside the instance |
-| Lenny persona + review system | Working | Pre-installed, monitors all agents |
+| ClawIQ CLI (emit, pull, report, session) | Working | Telemetry + issue reporting |
+| Lenny persona + review system | Working | Personality template for Lenny agent |
 | Issue/patch system | Working | Lenny files issues, dashboard displays |
-| OTEL telemetry pipeline | Working | Agents emit traces/events |
-| Session transcript analysis | Working | Lenny uses for deep reviews |
-| ClawIQ API client | Working | Agents report to the platform |
+| OTEL telemetry pipeline | Working | Agent monitoring infrastructure |
+| ClawIQ API (Go backend) | Working | Foundation for control plane API |
+| Web app (Next.js) | Working | Foundation for dashboard |
 | Landing page (`/new`) | Working | Customer acquisition |
-| Web app (clawiq-app) | Partial | Auth, API proxy, basic UI — needs dashboard rebuild |
 
 ---
 
 ## After MVP
 
+### Chat room → channels
+- Basic chat room ships with MVP (dashboard-only)
+- Slack integration (most requested for SMBs)
+- Microsoft Teams integration
+- Each agent can be @-mentioned in channels
+- Channel messages flow through ClawIQ (not direct to model API)
+
 ### Tier 1: Self-service file connectors
-- Google Drive, Dropbox, SharePoint OAuth flows in the dashboard
-- Customer authenticates → platform stores tokens → syncs to instance → local proxy serves files to agents
-- RAG curation agent (auto-chunking, indexing, runs in instance)
-- Agents call the same local proxy — they don't know the data source changed
-- Sign up at clawiq.md, no MTT involvement
+- Google Drive, Dropbox, SharePoint OAuth in dashboard
+- Customer authenticates → ClawIQ stores tokens → proxy serves files to agents
+- RAG curation agent (auto-chunking, indexing)
+- Agents call the same proxy — data source is transparent
 
 ### Tier 3: Custom data layer
 - CUSTOMIZE.md recipe (discovery → schema → ETL → custom API)
-- Custom API runs inside the instance behind the local proxy
+- Custom API runs behind the data proxy
 - KPIs and reports on dashboard
-- Source system connectors (industry-specific)
 - Premium consulting engagement
 
+### Local models (ollama)
+- Instance runs ollama alongside the agent executor
+- Model routing: cheap tasks → local, complex tasks → cloud
+- Requires Docker or bare-metal deployment
+- Key for on-prem customers with data sensitivity
+
+### On-prem deployment
+- Package instance as Docker or installable service
+- Proxy runs locally — all data stays on-premises
+- Poll-not-push for platform connectivity
+- IT provider installation guide
+
 ### Security hardening
-- gVisor container runtime
-- Inference guardrails (PII detection/redaction, output filtering)
+- Container isolation (when Dockerized)
+- Inference guardrails (PII detection, output filtering)
 - Privacy routing (sensitive queries → local models)
 - Per-agent budget auto-pause
-
-### On-prem
-- Same Docker, customer's server
-- Proxy runs locally — all data requests stay on-premises
-- Poll-not-push for control plane connectivity (outbound only)
-- Local model support (ollama)
-- IT provider installation guide
 
 ### Reseller program
 - Partner portal, revenue share tracking
@@ -273,10 +316,10 @@ _Wire everything up._
 
 ## Principles
 
-1. **ClawIQ is the control plane. The proxy runs in the instance.** The platform manages credentials and scope definitions. The instance enforces them locally. Data requests never route through ClawIQ's cloud.
-2. **The execution backend is swappable.** OpenClaw today, something else tomorrow. The customer sees ClawIQ.
-3. **Dashboard first.** The product is the dashboard. Build it before the infrastructure. Demo with mock data. Wire up real data underneath.
+1. **ClawIQ is the control plane. Agent CLIs do the execution.** ClawIQ orchestrates via acpx. Claude Code and Codex handle the agent loop, tool calls, retries. ClawIQ handles everything around them.
+2. **Dashboard first.** The product is `<company>.clawiq.md`. Build the UI, demo with mock data, wire up real agents underneath.
+3. **Workspaces are real filesystems.** Each agent gets a directory with personality files, memory, and scratchpad. The agent CLI reads and writes these natively. No virtual filesystem abstraction.
 4. **Lenny is the differentiator.** Others can put agents on an API. Nobody else has a built-in manager that makes the team better every week.
-5. **The data layer is the moat, not the MVP.** Control plane + proxy first. Connectors and custom data layers when customers need them.
-6. **Proxy-first means source-agnostic.** Agents call the local proxy the same way regardless of data source. New connectors don't change agent code.
-7. **Offline-capable.** If the platform is unreachable, the instance keeps working with cached credentials and queued audit logs.
+5. **The data proxy runs locally.** Customer API credentials never leave the instance. Data requests never route through the cloud.
+6. **Start monolith, split later.** MVP runs platform + instance in one process on Railway. Poll protocol and instance separation come when on-prem demands it.
+7. **Customer's subscription, not ours.** The agent CLI authenticates with the customer's Claude/Codex subscription. ClawIQ never touches model auth. This keeps model costs on the customer and avoids TOS issues.
